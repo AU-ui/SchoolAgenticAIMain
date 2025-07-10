@@ -123,7 +123,7 @@ The frontend will be running on `http://localhost:3000`
 The system comes with a default superadmin account:
 
 - **Email**: `superadmin@edtech.com`
-- **Password**: `admin123`
+- **Password**: `SuperAdmin123!`
 
 ## 🧪 Testing the Setup
 
@@ -152,7 +152,7 @@ Expected response:
 # Test login endpoint
 curl -X POST http://localhost:5000/api/auth/login \
   -H "Content-Type: application/json" \
-  -d '{"email":"superadmin@edtech.com","password":"admin123"}'
+  -d '{"email":"superadmin@edtech.com","password":"SuperAdmin123!"}'
 ```
 
 ## 🐛 Troubleshooting

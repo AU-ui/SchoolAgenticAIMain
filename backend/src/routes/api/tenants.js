@@ -52,29 +52,47 @@ router.get('/:tenantId', authenticateToken, requireTenantAccess, async (req, res
   }
 });
 
-// Create new tenant (superadmin only)
+// Create new tenant or school (superadmin only)
 router.post('/', authenticateToken, requireAdminAccess, async (req, res) => {
   try {
-    const { name, domain, settings } = req.body;
-    
-    if (!name) {
-      return res.status(400).json({
-        success: false,
-        message: 'Tenant name is required'
-      });
+    const { name, domain, address, phone, email, tenantId, newTenantName } = req.body;
+    let finalTenantId;
+    let createdTenant = null;
+
+    // 1. If newTenantName is provided, create a new tenant (group)
+    if (newTenantName) {
+      const tenantResult = await query(
+        'INSERT INTO tenants (name, domain) VALUES ($1, $2) RETURNING *',
+        [newTenantName, domain || null]
+      );
+      finalTenantId = tenantResult.rows[0].id;
+      createdTenant = tenantResult.rows[0];
+    } else if (tenantId) {
+      // 2. If tenantId is provided, use existing tenant
+      finalTenantId = tenantId;
+    } else {
+      // 3. Solo school: create a new tenant with the same name as the school
+      const tenantResult = await query(
+        'INSERT INTO tenants (name, domain) VALUES ($1, $2) RETURNING *',
+        [name, domain || null]
+      );
+      finalTenantId = tenantResult.rows[0].id;
+      createdTenant = tenantResult.rows[0];
     }
 
-    const result = await query(
-      'INSERT INTO tenants (name, domain, settings) VALUES ($1, $2, $3) RETURNING *',
-      [name, domain, settings || {}]
+    // Always create a new school under the determined tenant
+    const schoolResult = await query(
+      'INSERT INTO schools (tenant_id, name, address, phone, email) VALUES ($1, $2, $3, $4, $5) RETURNING *',
+      [finalTenantId, name, address || null, phone || null, email || null]
     );
 
     res.status(201).json({
       success: true,
-      tenant: result.rows[0]
+      tenant: createdTenant,
+      school: schoolResult.rows[0]
     });
   } catch (error) {
-    console.error('Error creating tenant:', error);
+    console.error('Error creating tenant/school:', error);
     res.status(500).json({
       success: false,
       message: 'Internal server error'

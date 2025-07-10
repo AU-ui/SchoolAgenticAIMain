@@ -14,6 +14,7 @@ const tenantRoutes = require('./routes/api/tenants');
 const landingRoutes = require('./routes/api/landing');
 const adminRoutes = require('./routes/api/admin');
 const userRoutes = require('./routes/api/users');
+const superadminRoutes = require('./routes/api/superadmin');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -111,6 +112,7 @@ app.use('/api/tenants', tenantRoutes);
 app.use('/api/landing', landingRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/users', userRoutes);
+app.use('/api/superadmin', superadminRoutes);
 
 // 404 handler
 app.use('*', (req, res) => {

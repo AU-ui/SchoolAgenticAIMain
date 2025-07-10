@@ -143,15 +143,15 @@ router.post('/reset-password', async (req, res) => {
     if (['admin', 'superadmin'].includes(user.role)) {
       if (!validateAdminPassword(newPassword)) {
         return res.status(400).json({
-          success: false,
+            success: false,
           message: 'Password must be at least 12 characters long and contain uppercase, lowercase, numbers, and special characters'
         });
       }
     } else {
       // Basic password validation for other roles
       if (!isStrongPassword(newPassword)) {
-        return res.status(400).json({
-          success: false,
+      return res.status(400).json({
+        success: false,
           message: 'Password must be at least 8 characters, include uppercase, lowercase, and a number.'
         });
       }
@@ -180,13 +180,13 @@ router.post('/refresh-token', authenticateToken, async (req, res) => {
       success: true,
       token: newToken
     });
-  } catch (error) {
+    } catch (error) {
     console.error('Token refresh error:', error);
-    res.status(500).json({
-      success: false,
+        res.status(500).json({
+            success: false,
       message: 'Token refresh failed'
-    });
-  }
+        });
+    }
 });
 
 // Enhanced login with account lockout
@@ -217,20 +217,20 @@ router.post('/login', async (req, res) => {
         [email]
       );
 
-      if (userResult.rows.length === 0) {
+    if (userResult.rows.length === 0) {
         return res.status(401).json({
-          success: false,
+        success: false,
           message: 'Invalid verification attempt'
-        });
-      }
+      });
+    }
 
-      const user = userResult.rows[0];
+    const user = userResult.rows[0];
       
       if (user.verification_code !== verificationCode || 
           new Date() > new Date(user.verification_expires)) {
         recordLoginAttempt(email, false);
         return res.status(401).json({
-          success: false,
+      success: false,
           message: 'Invalid or expired verification code'
         });
       }
@@ -288,7 +288,7 @@ router.post('/login', async (req, res) => {
         success: false,
         message: 'Account is deactivated'
       });
-    }
+        }
 
     const isValidPassword = await bcrypt.compare(password, user.password);
     if (!isValidPassword) {
@@ -317,12 +317,12 @@ router.post('/login', async (req, res) => {
       recordLoginAttempt(email, true);
       
       return res.json({
-        success: true,
+            success: true,
         message: 'Login successful (Development Mode - Email verification bypassed)',
         token,
-        user: {
-          id: user.id,
-          email: user.email,
+                user: {
+                    id: user.id,
+                    email: user.email,
           role: user.role,
           tenantId: user.tenant_id
         }
@@ -373,16 +373,16 @@ router.post('/login', async (req, res) => {
         email: user.email,
         role: user.role,
         tenantId: user.tenant_id
-      }
-    });
+                }
+            });
 
-  } catch (error) {
+        } catch (error) {
     console.error('Login error:', error);
-    res.status(500).json({
-      success: false,
+        res.status(500).json({ 
+            success: false,
       message: 'Internal server error'
-    });
-  }
+        });
+    }
 });
 
 // Enhanced signup with complex password validation
@@ -408,7 +408,7 @@ router.post('/signup', async (req, res) => {
       
       if (codeData.current_uses >= codeData.max_uses) {
         return res.status(400).json({
-          success: false,
+            success: false,
           message: 'School code usage limit reached'
         });
       }
@@ -447,7 +447,7 @@ router.post('/signup', async (req, res) => {
 
     if (existingUser.rows.length > 0) {
       return res.status(400).json({
-        success: false,
+            success: false,
         message: 'User already exists'
       });
     }
@@ -517,15 +517,15 @@ router.post('/signup', async (req, res) => {
       message: 'User created successfully. Please check your email for verification.',
       requiresVerification: true,
       verificationCode: signupVerificationCode
-    });
-
-  } catch (error) {
+        });
+        
+    } catch (error) {
     console.error('Signup error:', error);
-    res.status(500).json({
-      success: false,
+        res.status(500).json({
+            success: false,
       message: 'Internal server error'
-    });
-  }
+        });
+    }
 });
 
 // Verify email endpoint

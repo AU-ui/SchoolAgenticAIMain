@@ -131,7 +131,7 @@ async function testAuthEndpoints() {
   console.log('\n   🔑 Testing POST /auth/login...');
   const loginData = {
     email: 'superadmin@edtech.com',
-    password: 'admin123'
+    password: 'SuperAdmin123!'
   };
   const loginResponse = await makeRequest('POST', '/auth/login', loginData);
   if (loginResponse.success) {

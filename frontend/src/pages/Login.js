@@ -82,8 +82,13 @@ const Login = () => {
         // Navigate based on role
         switch (user.role) {
           case 'superadmin':
+            navigate('/superadmin-dashboard');
+            break;
           case 'admin':
             navigate('/admin-dashboard');
+            break;
+          case 'administrator':
+            navigate('/administrator-dashboard');
             break;
           case 'teacher':
             navigate('/teacher-dashboard');
@@ -112,7 +117,7 @@ const Login = () => {
     setLoading(true);
     
     const demoCredentials = {
-      superadmin: { email: 'superadmin@edtech.com', password: 'admin123' },
+      superadmin: { email: 'superadmin@edtech.com', password: 'SuperAdmin123!' },
       teacher: { email: 'teacher@demo.edu', password: 'teacher123' },
       parent: { email: 'parent@demo.edu', password: 'parent123' },
       student: { email: 'student@demo.edu', password: 'student123' }

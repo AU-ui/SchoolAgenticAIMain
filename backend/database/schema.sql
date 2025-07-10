@@ -136,6 +136,7 @@ CREATE TABLE school_codes (
     id SERIAL PRIMARY KEY,
     code VARCHAR(20) UNIQUE NOT NULL,
     tenant_id INTEGER REFERENCES tenants(id) ON DELETE CASCADE,
+    school_id INTEGER REFERENCES schools(id) ON DELETE CASCADE,
     created_by INTEGER REFERENCES users(id),
     created_at TIMESTAMP DEFAULT NOW(),
     expires_at TIMESTAMP,

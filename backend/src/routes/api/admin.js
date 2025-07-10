@@ -1,6 +1,7 @@
 const express = require('express');
 const { query } = require('../../config/database');
 const { authenticateToken, requireRole } = require('../../middleware/auth');
+const { generateBranchSchoolCode } = require('../../utils/generateBranchSchoolCode');
 
 const router = express.Router();
 
@@ -219,23 +220,32 @@ router.delete('/users/:id', authenticateToken, requireRole(['superadmin', 'admin
 // POST /api/admin/school-codes (generate new school code)
 router.post('/school-codes', authenticateToken, requireRole(['superadmin', 'admin', 'administrator']), async (req, res) => {
   try {
-    const { expiresAt, maxUses, description } = req.body;
+    const { expiresAt, maxUses, description, schoolId } = req.body;
     const user = req.user;
-    
-    // Generate a random, strong code
-    const code = generateSchoolCode();
     
     // Determine tenant_id based on user role
     let tenantId = user.tenantId;
     if (user.role === 'superadmin' && req.body.tenantId) {
       tenantId = req.body.tenantId;
     }
-    
+    if (!schoolId) {
+      return res.status(400).json({ success: false, message: 'schoolId is required' });
+    }
+
+    // Generate a unique code for this branch
+    let code;
+    let isUnique = false;
+    while (!isUnique) {
+      code = generateBranchSchoolCode(tenantId, schoolId);
+      const check = await query('SELECT 1 FROM school_codes WHERE code = $1', [code]);
+      if (check.rows.length === 0) isUnique = true;
+    }
+
     const result = await query(
-      `INSERT INTO school_codes (code, tenant_id, created_by, expires_at, max_uses, description)
-       VALUES ($1, $2, $3, $4, $5, $6)
-       RETURNING id, code, tenant_id, created_at, expires_at, max_uses, current_uses, is_active`,
-      [code, tenantId, user.id, expiresAt || null, maxUses || 1, description || null]
+      `INSERT INTO school_codes (code, tenant_id, school_id, created_by, expires_at, max_uses, description)
+       VALUES ($1, $2, $3, $4, $5, $6, $7)
+       RETURNING id, code, tenant_id, school_id, created_at, expires_at, max_uses, current_uses, is_active`,
+      [code, tenantId, schoolId, user.id, expiresAt || null, maxUses || 1, description || null]
     );
     
     res.json({ success: true, data: result.rows[0] });
