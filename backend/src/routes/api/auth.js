@@ -534,7 +534,7 @@ router.post('/verify-email', async (req, res) => {
     const { email, verificationCode } = req.body;
 
     const userResult = await query(
-      'SELECT id, verification_code, verification_expires FROM users WHERE email = $1',
+      'SELECT id, verification_code, verification_expires, first_name FROM users WHERE email = $1',
       [email]
     );
 
@@ -582,11 +582,21 @@ router.post('/verify-email', async (req, res) => {
       });
     }
 
-    res.json({
-      success: true,
-      message: 'Email verified successfully'
+    // Send welcome/confirmation email after successful verification
+    const userName = user.first_name || email.split('@')[0];
+    const loginUrl = `${process.env.FRONTEND_URL || 'http://localhost:3000'}/login`;
+    
+    await sendEmail(email, 'welcome', {
+      userName: userName,
+      url: loginUrl
     });
 
+    console.log(`[VERIFY-EMAIL] Welcome email sent to ${email} for user ID: ${user.id}`);
+
+    return res.json({ 
+      success: true, 
+      message: 'Email verified successfully. Welcome email sent!' 
+    });
   } catch (error) {
     console.error('Email verification error:', error);
     res.status(500).json({

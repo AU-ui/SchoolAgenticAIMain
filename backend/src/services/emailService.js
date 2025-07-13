@@ -80,7 +80,7 @@ const emailTemplates = {
   }),
 
   welcome: (userName, loginUrl) => ({
-    subject: 'Welcome to EdTech Platform!',
+    subject: '🎉 Email Verified - Welcome to EdTech Platform!',
     html: `
       <!DOCTYPE html>
       <html>
@@ -94,6 +94,10 @@ const emailTemplates = {
           .header { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 30px; text-align: center; border-radius: 10px 10px 0 0; }
           .content { background: #f8f9fa; padding: 30px; border-radius: 0 0 10px 10px; }
           .button { display: inline-block; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 12px 30px; text-decoration: none; border-radius: 8px; font-weight: bold; margin: 20px 0; }
+          .success-icon { font-size: 48px; margin: 20px 0; }
+          .feature-list { background: white; padding: 20px; border-radius: 8px; margin: 20px 0; }
+          .feature-list ul { margin: 0; padding-left: 20px; }
+          .feature-list li { margin: 8px 0; }
           .footer { text-align: center; margin-top: 30px; color: #666; font-size: 14px; }
         </style>
       </head>
@@ -104,21 +108,32 @@ const emailTemplates = {
             <p>Your account is now active!</p>
           </div>
           <div class="content">
-            <h2>Welcome ${userName}!</h2>
-            <p>🎉 Congratulations! Your email has been successfully verified and your EdTech Platform account is now active.</p>
+            <div style="text-align: center;">
+              <div class="success-icon">✅</div>
+              <h2>Welcome ${userName}!</h2>
+            </div>
             
-            <p>You can now access all the features of our platform:</p>
-            <ul>
-              <li>📚 Smart Learning Management</li>
-              <li>👨‍🏫 Teacher Tools & Resources</li>
-              <li>👨‍👩‍👧‍👦 Parent Communication</li>
-              <li>📊 Progress Tracking</li>
-              <li>🎯 AI-Powered Insights</li>
-            </ul>
+            <p>🎉 <strong>Congratulations!</strong> Your email has been successfully verified and your EdTech Platform account is now active.</p>
+            
+            <div class="feature-list">
+              <h3>🚀 You now have access to:</h3>
+              <ul>
+                <li><strong>📚 Smart Learning Management</strong> - AI-powered educational tools</li>
+                <li><strong>👨‍🏫 Teacher Tools & Resources</strong> - Attendance, grading, and task management</li>
+                <li><strong>👨‍👩‍👧‍👦 Parent Communication</strong> - Multi-language messaging and updates</li>
+                <li><strong>📊 Progress Tracking</strong> - Real-time analytics and insights</li>
+                <li><strong>🎯 AI-Powered Insights</strong> - Personalized recommendations</li>
+                <li><strong>📱 Multi-School Support</strong> - Manage multiple institutions</li>
+              </ul>
+            </div>
             
             <div style="text-align: center;">
-              <a href="${loginUrl}" class="button">Login to Your Account</a>
+              <a href="${loginUrl}" class="button">🚀 Login to Your Account</a>
             </div>
+            
+            <p style="margin-top: 30px; padding: 15px; background: #e8f5e8; border-radius: 8px; border-left: 4px solid #4CAF50;">
+              <strong>💡 Pro Tip:</strong> Bookmark the login page for quick access to your dashboard.
+            </p>
             
             <p>If you have any questions or need assistance, please don't hesitate to contact our support team.</p>
           </div>
@@ -134,7 +149,15 @@ const emailTemplates = {
       
       🎉 Congratulations! Your email has been successfully verified and your EdTech Platform account is now active.
       
-      You can now access all the features of our platform. Login here: ${loginUrl}
+      You now have access to:
+      📚 Smart Learning Management
+      👨‍🏫 Teacher Tools & Resources  
+      👨‍👩‍👧‍👦 Parent Communication
+      📊 Progress Tracking
+      🎯 AI-Powered Insights
+      📱 Multi-School Support
+      
+      Login here: ${loginUrl}
       
       If you have any questions or need assistance, please don't hesitate to contact our support team.
       
