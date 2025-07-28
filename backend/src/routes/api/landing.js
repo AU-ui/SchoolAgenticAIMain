@@ -187,4 +187,49 @@ router.get('/stats', async (req, res) => {
   }
 });
 
+// @route   GET /api/landing/tenant-logo/:schoolCode
+// @desc    Get tenant logo by school code
+// @access  Public
+router.get('/tenant-logo/:schoolCode', async (req, res) => {
+  try {
+    const { schoolCode } = req.params;
+
+    // Find tenant by school code
+    const tenantResult = await query(
+      `SELECT t.id, t.name, t.logo_url, t.domain
+       FROM tenants t
+       JOIN school_codes sc ON t.id = sc.tenant_id
+       WHERE sc.code = $1 AND sc.is_active = true AND t.is_active = true
+       LIMIT 1`,
+      [schoolCode]
+    );
+
+    if (tenantResult.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: 'School not found or code is invalid'
+      });
+    }
+
+    const tenant = tenantResult.rows[0];
+
+    res.json({
+      success: true,
+      data: {
+        tenantId: tenant.id,
+        tenantName: tenant.name,
+        logoUrl: tenant.logo_url,
+        domain: tenant.domain
+      }
+    });
+
+  } catch (error) {
+    console.error('Get tenant logo error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Internal server error'
+    });
+  }
+});
+
 module.exports = router; 

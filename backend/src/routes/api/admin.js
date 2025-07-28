@@ -141,20 +141,34 @@ router.get('/users', authenticateToken, requireRole(['superadmin', 'admin']), as
   try {
     const { role: filterRole, tenantId: filterTenantId } = req.query;
     const user = req.user;
-    let sql = 'SELECT id, email, first_name, last_name, role, tenant_id, is_active, email_verified FROM users WHERE 1=1';
+    let sql;
     let params = [];
 
-    // Admin can only see users for their own school
-    if (user.role === 'admin') {
-      sql += ' AND tenant_id = $1';
+    if (user.role === 'superadmin') {
+      // Superadmin: see all users, optionally filter by role
+      sql = 'SELECT id, email, first_name, last_name, role, tenant_id, is_active, email_verified FROM users WHERE 1=1';
+      if (filterRole) {
+        sql += ' AND role = $1';
+        params.push(filterRole);
+      }
+    } else if (user.role === 'admin') {
+      // Admin: only see users for their own school
+      sql = 'SELECT id, email, first_name, last_name, role, tenant_id, is_active, email_verified FROM users WHERE tenant_id = $1';
       params.push(user.tenantId);
+      if (filterRole) {
+        sql += ' AND role = $2';
+        params.push(filterRole);
+      }
     } else if (filterTenantId) {
-      sql += ' AND tenant_id = $1';
+      sql = 'SELECT id, email, first_name, last_name, role, tenant_id, is_active, email_verified FROM users WHERE tenant_id = $1';
       params.push(filterTenantId);
-    }
-    if (filterRole) {
-      sql += params.length ? ' AND role = $2' : ' AND role = $1';
-      params.push(filterRole);
+      if (filterRole) {
+        sql += ' AND role = $2';
+        params.push(filterRole);
+      }
+    } else {
+      // fallback: no access
+      return res.status(403).json({ success: false, message: 'Forbidden' });
     }
     sql += ' ORDER BY created_at DESC';
     const result = await query(sql, params);
@@ -199,21 +213,242 @@ router.put('/users/:id', authenticateToken, requireRole(['superadmin', 'admin'])
 });
 
 // DELETE /api/admin/users/:id (deactivate user)
-router.delete('/users/:id', authenticateToken, requireRole(['superadmin', 'admin']), async (req, res) => {
+router.delete('/users/:id', authenticateToken, requireRole(['admin', 'superadmin']), async (req, res) => {
   try {
-    const { id } = req.params;
-    const user = req.user;
-    let sql = 'UPDATE users SET is_active = false WHERE id = $1';
-    let params = [id];
-    if (user.role === 'admin') {
-      sql += ' AND tenant_id = $2';
-      params.push(user.tenantId);
+    const { id: adminId } = req.user;
+    const userId = req.params.id;
+    const { reason, deleted_by } = req.body;
+
+    // Prevent self-deletion
+    if (userId == adminId) {
+      return res.status(400).json({
+        success: false,
+        message: 'You cannot delete your own account'
+      });
     }
-    await query(sql, params);
-    res.json({ success: true, message: 'User deactivated.' });
+
+    // Check if user exists and get user info
+    const userQuery = `
+      SELECT u.id, u.email, u.role, u.tenant_id, t.name as tenant_name
+      FROM users u
+      JOIN tenants t ON u.tenant_id = t.id
+      WHERE u.id = $1
+    `;
+    
+    const userResult = await query(userQuery, [userId]);
+    
+    if (userResult.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found'
+      });
+    }
+
+    const userToDelete = userResult.rows[0];
+
+    // Prevent deletion of superadmin by non-superadmin
+    if (userToDelete.role === 'superadmin' && req.user.role !== 'superadmin') {
+      return res.status(403).json({
+        success: false,
+        message: 'Only superadmin can delete superadmin accounts'
+      });
+    }
+
+    // Start transaction
+    await query('BEGIN');
+
+    try {
+      // Log the deletion
+      const logQuery = `
+        INSERT INTO user_deletion_logs (
+          user_id, 
+          user_email, 
+          user_role, 
+          tenant_id, 
+          tenant_name,
+          deleted_by, 
+          deletion_reason, 
+          deleted_at
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, NOW())
+      `;
+      
+      await query(logQuery, [
+        userId,
+        userToDelete.email,
+        userToDelete.role,
+        userToDelete.tenant_id,
+        userToDelete.tenant_name,
+        deleted_by,
+        reason
+      ]);
+
+      // Delete related data based on user role
+      if (userToDelete.role === 'student') {
+        // Delete student-specific data
+        await query('DELETE FROM student_attendance WHERE student_id IN (SELECT id FROM students WHERE user_id = $1)', [userId]);
+        await query('DELETE FROM student_grades WHERE student_id IN (SELECT id FROM students WHERE user_id = $1)', [userId]);
+        await query('DELETE FROM students WHERE user_id = $1', [userId]);
+      } else if (userToDelete.role === 'teacher') {
+        // Delete teacher-specific data
+        await query('DELETE FROM teacher_assignments WHERE teacher_id IN (SELECT id FROM teachers WHERE user_id = $1)', [userId]);
+        await query('DELETE FROM teachers WHERE user_id = $1', [userId]);
+      } else if (userToDelete.role === 'parent') {
+        // Delete parent-specific data
+        await query('DELETE FROM parent_students WHERE parent_id IN (SELECT id FROM parents WHERE user_id = $1)', [userId]);
+        await query('DELETE FROM parents WHERE user_id = $1', [userId]);
+      }
+
+      // Delete user sessions
+      await query('DELETE FROM user_sessions WHERE user_id = $1', [userId]);
+
+      // Finally, delete the user
+      await query('DELETE FROM users WHERE id = $1', [userId]);
+
+      // Commit transaction
+      await query('COMMIT');
+
+      res.json({
+        success: true,
+        message: 'User deleted successfully',
+        data: {
+          deleted_user: {
+            id: userId,
+            email: userToDelete.email,
+            role: userToDelete.role
+          }
+        }
+      });
+
+    } catch (error) {
+      // Rollback transaction on error
+      await query('ROLLBACK');
+      throw error;
+    }
+
   } catch (error) {
-    console.error('Deactivate user error:', error);
-    res.status(500).json({ success: false, message: 'Internal server error' });
+    console.error('Error deleting user:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to delete user'
+    });
+  }
+});
+
+// PUT /api/admin/users/:id/deactivate
+router.put('/users/:id/deactivate', authenticateToken, requireRole(['admin', 'superadmin']), async (req, res) => {
+  try {
+    const { id: adminId } = req.user;
+    const userId = req.params.id;
+    const { deactivated_by } = req.body;
+
+    // Prevent self-deactivation
+    if (userId == adminId) {
+      return res.status(400).json({
+        success: false,
+        message: 'You cannot deactivate your own account'
+      });
+    }
+
+    const updateQuery = `
+      UPDATE users 
+      SET status = 'inactive', updated_at = NOW()
+      WHERE id = $1
+      RETURNING id, email, role
+    `;
+    
+    const result = await query(updateQuery, [userId]);
+    
+    if (result.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found'
+      });
+    }
+
+    res.json({
+      success: true,
+      message: 'User deactivated successfully',
+      data: result.rows[0]
+    });
+
+  } catch (error) {
+    console.error('Error deactivating user:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to deactivate user'
+    });
+  }
+});
+
+// PUT /api/admin/users/:id/activate
+router.put('/users/:id/activate', authenticateToken, requireRole(['admin', 'superadmin']), async (req, res) => {
+  try {
+    const userId = req.params.id;
+    const { activated_by } = req.body;
+
+    const updateQuery = `
+      UPDATE users 
+      SET status = 'active', updated_at = NOW()
+      WHERE id = $1
+      RETURNING id, email, role
+    `;
+    
+    const result = await query(updateQuery, [userId]);
+    
+    if (result.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found'
+      });
+    }
+
+    res.json({
+      success: true,
+      message: 'User activated successfully',
+      data: result.rows[0]
+    });
+
+  } catch (error) {
+    console.error('Error activating user:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to activate user'
+    });
+  }
+});
+
+// GET /api/admin/users
+router.get('/users', authenticateToken, requireRole(['admin', 'superadmin']), async (req, res) => {
+  try {
+    const { tenantId } = req.user;
+    
+    const usersQuery = `
+      SELECT 
+        u.id,
+        u.first_name,
+        u.last_name,
+        u.email,
+        u.role,
+        u.status,
+        u.created_at,
+        u.updated_at
+      FROM users u
+      WHERE u.tenant_id = $1
+      ORDER BY u.created_at DESC
+    `;
+    
+    const result = await query(usersQuery, [tenantId]);
+    
+    res.json({
+      success: true,
+      data: result.rows
+    });
+  } catch (error) {
+    console.error('Error fetching users:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch users'
+    });
   }
 });
 
@@ -380,12 +615,13 @@ router.put('/pending-users/:id/reject', authenticateToken, requireRole(['superad
   }
 });
 
-// Validate school code and return school name
+// Validate school code and return school name with logo
 router.get('/school-codes/validate/:code', async (req, res) => {
   try {
     const { code } = req.params;
     const result = await query(
-      `SELECT sc.code, sc.is_active, sc.expires_at, sc.max_uses, sc.current_uses, sc.tenant_id, t.name as school_name
+      `SELECT sc.code, sc.is_active, sc.expires_at, sc.max_uses, sc.current_uses, sc.tenant_id, 
+              t.name as school_name, t.logo_url
        FROM school_codes sc
        JOIN tenants t ON sc.tenant_id = t.id
        WHERE sc.code = $1`,
@@ -398,6 +634,7 @@ router.get('/school-codes/validate/:code', async (req, res) => {
     res.json({
       success: true,
       schoolName: row.school_name,
+      logoUrl: row.logo_url, // Include logo URL
       isActive: row.is_active,
       expiresAt: row.expires_at,
       maxUses: row.max_uses,

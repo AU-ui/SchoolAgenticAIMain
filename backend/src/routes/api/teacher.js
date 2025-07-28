@@ -3,6 +3,40 @@ const { query } = require('../../config/database');
 const { authenticateToken, requireRole } = require('../../middleware/auth');
 const router = express.Router();
 
+// Add ML service integration to existing teacher routes
+const mlService = require('../../services/mlService');
+
+const multer = require('multer');
+const path = require('path');
+const fs = require('fs');
+
+// Configure multer for student image uploads
+const studentImageStorage = multer.diskStorage({
+  destination: function (req, file, cb) {
+    const uploadDir = 'uploads/student-images';
+    if (!fs.existsSync(uploadDir)) {
+      fs.mkdirSync(uploadDir, { recursive: true });
+    }
+    cb(null, uploadDir);
+  },
+  filename: function (req, file, cb) {
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+    cb(null, 'student-' + uniqueSuffix + path.extname(file.originalname));
+  }
+});
+
+const uploadStudentImage = multer({ 
+  storage: studentImageStorage,
+  limits: { fileSize: 5 * 1024 * 1024 }, // 5MB limit
+  fileFilter: (req, file, cb) => {
+    if (file.mimetype.startsWith('image/')) {
+      cb(null, true);
+    } else {
+      cb(new Error('Only image files are allowed!'), false);
+    }
+  }
+});
+
 // GET /api/teacher/dashboard
 router.get('/dashboard', authenticateToken, requireRole(['teacher']), async (req, res) => {
   try {
@@ -89,7 +123,27 @@ router.get('/classes', authenticateToken, requireRole(['teacher']), async (req, 
   }
 });
 
-// GET /api/teacher/classes/:classId/students
+// GET /api/teacher/classes/:classId
+router.get('/classes/:classId', authenticateToken, requireRole(['teacher']), async (req, res) => {
+  try {
+    const { classId } = req.params;
+    const classQuery = `
+      SELECT id, name
+      FROM classes
+      WHERE id = $1
+    `;
+    const result = await query(classQuery, [classId]);
+    if (result.rows.length === 0) {
+      return res.status(404).json({ success: false, message: 'Class not found' });
+    }
+    res.json({ success: true, data: result.rows[0] });
+  } catch (error) {
+    console.error('Class fetch error:', error);
+    res.status(500).json({ success: false, message: 'Internal server error' });
+  }
+});
+
+// Enhanced GET /api/teacher/classes/:classId/students
 router.get('/classes/:classId/students', authenticateToken, requireRole(['teacher']), async (req, res) => {
   try {
     const { classId } = req.params;
@@ -98,9 +152,12 @@ router.get('/classes/:classId/students', authenticateToken, requireRole(['teache
     const studentsQuery = `
       SELECT 
         s.id,
+        s.student_id as student_code,
         u.first_name,
         u.last_name,
-        s.student_id as student_code
+        u.email,
+        s.emergency_contact,
+        s.emergency_phone
       FROM students s
       JOIN users u ON s.user_id = u.id
       WHERE s.class_id = $1 AND s.is_active = true
@@ -756,6 +813,156 @@ router.post('/substitutes', authenticateToken, requireRole(['teacher']), async (
     });
   } catch (error) {
     console.error('Substitute request error:', error);
+    res.status(500).json({ success: false, message: 'Internal server error' });
+  }
+});
+
+// Add ML service integration to existing teacher routes
+router.post('/attendance/analyze', authenticateToken, requireRole(['teacher']), async (req, res) => {
+    try {
+        const { attendance_data } = req.body;
+        
+        // Call ML service for advanced analysis
+        const mlAnalysis = await mlService.analyzeAttendancePatterns(attendance_data);
+        
+        if (mlAnalysis.success) {
+            res.json({
+                success: true,
+                data: mlAnalysis.data,
+                message: 'Attendance analysis completed with ML insights'
+            });
+        } else {
+            // Fallback to basic analysis
+            res.json({
+                success: true,
+                data: basicAttendanceAnalysis(attendance_data),
+                message: 'Basic attendance analysis completed'
+            });
+        }
+    } catch (error) {
+        console.error('Attendance analysis error:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Failed to analyze attendance'
+        });
+    }
+});
+
+// POST /api/teacher/students/:studentId/upload-image
+router.post('/students/:studentId/upload-image', 
+  authenticateToken, 
+  requireRole(['teacher']), 
+  uploadStudentImage.single('image'), 
+  async (req, res) => {
+    try {
+      const { studentId } = req.params;
+      const { id: teacherId } = req.user;
+
+      if (!req.file) {
+        return res.status(400).json({ 
+          success: false, 
+          message: 'No image file provided' 
+        });
+      }
+
+      // Verify the student belongs to teacher's class
+      const studentQuery = `
+        SELECT s.id, s.student_id, u.first_name, u.last_name
+        FROM students s
+        JOIN classes c ON s.class_id = c.id
+        JOIN users u ON s.user_id = u.id
+        WHERE s.id = $1 AND c.teacher_id = $2 AND s.is_active = true
+      `;
+      
+      const studentResult = await query(studentQuery, [studentId, teacherId]);
+      
+      if (studentResult.rows.length === 0) {
+        return res.status(404).json({ 
+          success: false, 
+          message: 'Student not found or not in your class' 
+        });
+      }
+
+      const imageUrl = `/uploads/student-images/${req.file.filename}`;
+
+      // Update student with image URL
+      await query(
+        'UPDATE students SET profile_picture_url = $1 WHERE id = $2',
+        [imageUrl, studentId]
+      );
+
+      res.json({
+        success: true,
+        message: 'Student image uploaded successfully',
+        data: {
+          imageUrl,
+          student: studentResult.rows[0]
+        }
+      });
+
+    } catch (error) {
+      console.error('Student image upload error:', error);
+      res.status(500).json({ 
+        success: false, 
+        message: 'Internal server error' 
+      });
+    }
+  }
+);
+
+// POST /api/teacher/students/:studentId/update-details
+router.post('/students/:studentId/update-details', authenticateToken, requireRole(['teacher']), async (req, res) => {
+  try {
+    const { studentId } = req.params;
+    const { rollNumber, admissionNumber, section, parentPhone, emergencyContactName, emergencyContactPhone } = req.body;
+    const { id: teacherId } = req.user;
+
+    // Verify the student belongs to teacher's class
+    const studentQuery = `
+      SELECT s.id FROM students s
+      JOIN classes c ON s.class_id = c.id
+      WHERE s.id = $1 AND c.teacher_id = $2 AND s.is_active = true
+    `;
+    
+    const studentResult = await query(studentQuery, [studentId, teacherId]);
+    
+    if (studentResult.rows.length === 0) {
+      return res.status(404).json({ 
+        success: false, 
+        message: 'Student not found or not in your class' 
+      });
+    }
+
+    // Update student details
+    const updateQuery = `
+      UPDATE students 
+      SET roll_number = COALESCE($1, roll_number),
+          admission_number = COALESCE($2, admission_number),
+          section = COALESCE($3, section),
+          parent_phone = COALESCE($4, parent_phone),
+          emergency_contact_name = COALESCE($5, emergency_contact_name),
+          emergency_contact_phone = COALESCE($6, emergency_contact_phone),
+          updated_at = NOW()
+      WHERE id = $7
+    `;
+
+    await query(updateQuery, [
+      rollNumber, 
+      admissionNumber, 
+      section, 
+      parentPhone, 
+      emergencyContactName, 
+      emergencyContactPhone, 
+      studentId
+    ]);
+
+    res.json({
+      success: true,
+      message: 'Student details updated successfully'
+    });
+
+  } catch (error) {
+    console.error('Student update error:', error);
     res.status(500).json({ success: false, message: 'Internal server error' });
   }
 });

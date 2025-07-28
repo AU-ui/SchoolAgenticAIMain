@@ -1,0 +1,10 @@
+-- Add customization fields to syllabus table
+ALTER TABLE syllabus ADD COLUMN IF NOT EXISTS title VARCHAR(255);
+ALTER TABLE syllabus ADD COLUMN IF NOT EXISTS description TEXT;
+ALTER TABLE syllabus ADD COLUMN IF NOT EXISTS topics JSONB;
+ALTER TABLE syllabus ADD COLUMN IF NOT EXISTS learning_objectives JSONB;
+ALTER TABLE syllabus ADD COLUMN IF NOT EXISTS assessment_criteria JSONB;
+ALTER TABLE syllabus ADD COLUMN IF NOT EXISTS resources JSONB;
+ALTER TABLE syllabus ADD COLUMN IF NOT EXISTS is_public BOOLEAN DEFAULT false;
+ALTER TABLE syllabus ADD COLUMN IF NOT EXISTS shared_with_students BOOLEAN DEFAULT false;
+ALTER TABLE syllabus ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT NOW(); 

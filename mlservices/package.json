@@ -1,0 +1,25 @@
+{
+  "name": "edtech-ml-services",
+  "version": "1.0.0",
+  "description": "ML Services for EdTech Platform",
+  "main": "src/main.py",
+  "scripts": {
+    "start": "python src/main.py",
+    "dev": "uvicorn src.main:app --reload --host 0.0.0.0 --port 8000",
+    "install": "pip install -r requirements.txt",
+    "setup": "python -m venv venv && source venv/bin/activate && pip install -r requirements.txt",
+    "test": "python -m pytest tests/",
+    "health": "curl http://localhost:8000/health"
+  },
+  "keywords": [
+    "ml",
+    "ai",
+    "edtech",
+    "fastapi"
+  ],
+  "author": "Your Name",
+  "license": "MIT",
+  "dependencies": {
+    "pandas": "^0.0.3"
+  }
+}

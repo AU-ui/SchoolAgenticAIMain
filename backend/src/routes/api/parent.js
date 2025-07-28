@@ -2,6 +2,48 @@ const express = require('express');
 const { query } = require('../../config/database');
 const { authenticateToken, requireRole } = require('../../middleware/auth');
 const router = express.Router();
+const mlService = require('../../services/mlService');
+
+// GET /api/parent/children - Get all children for the authenticated parent
+router.get('/children', authenticateToken, async (req, res) => {
+  try {
+    const parentUserId = req.user.id;
+    // Get the parent's internal ID from the parents table
+    const parentResult = await query('SELECT id FROM parents WHERE user_id = $1', [parentUserId]);
+    if (parentResult.rows.length === 0) {
+      return res.json({ children: [] });
+    }
+    const parentId = parentResult.rows[0].id;
+
+    // Join students, users, schools, and tenants to get child info, school name, and school code
+    const childrenResult = await query(`
+      SELECT
+        s.id,
+        u.first_name AS name,
+        s.class_id AS grade,
+        sc.name AS schoolName,
+        t.domain AS schoolCode,
+        s.is_active AS status
+      FROM parent_students ps
+      JOIN students s ON ps.student_id = s.id
+      JOIN users u ON s.user_id = u.id
+      JOIN schools sc ON s.school_id = sc.id
+      JOIN tenants t ON sc.tenant_id = t.id
+      WHERE ps.parent_id = $1
+    `, [parentId]);
+
+    // Format status as 'Active'/'Inactive'
+    const children = childrenResult.rows.map(child => ({
+      ...child,
+      status: child.status ? 'Active' : 'Inactive'
+    }));
+
+    res.json({ children });
+  } catch (err) {
+    console.error('Error fetching children:', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
 
 // GET /api/parent/dashboard
 router.get('/dashboard', authenticateToken, requireRole(['parent']), async (req, res) => {
@@ -576,6 +618,67 @@ router.post('/emergencies/:id/acknowledge', authenticateToken, requireRole(['par
       message: 'Failed to acknowledge emergency'
     });
   }
+});
+
+// Add ML-powered sentiment analysis
+router.post('/communications/sentiment', authenticateToken, requireRole(['parent']), async (req, res) => {
+    try {
+        const { messages } = req.body;
+        
+        const sentimentAnalysis = await mlService.analyzeSentiment(messages);
+        
+        if (sentimentAnalysis.success) {
+            res.json({
+                success: true,
+                data: sentimentAnalysis.data,
+                message: 'Sentiment analysis completed'
+            });
+        } else {
+            res.status(500).json({
+                success: false,
+                message: 'Failed to analyze sentiment'
+            });
+        }
+    } catch (error) {
+        console.error('Sentiment analysis error:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Failed to analyze sentiment'
+        });
+    }
+});
+
+// Add ML-powered engagement prediction
+router.post('/engagement/predict', authenticateToken, requireRole(['parent']), async (req, res) => {
+    try {
+        const { parent_data, message_content, message_type, send_time } = req.body;
+        
+        const engagementPrediction = await mlService.predictEngagement(
+            parent_data, 
+            message_content, 
+            message_type, 
+            send_time
+        );
+        
+        if (engagementPrediction.success) {
+            res.json({
+                success: true,
+                data: engagementPrediction.data,
+                message: 'Engagement prediction completed'
+            });
+        } else {
+            res.status(500).json({
+                success: false,
+                message: 'Failed to predict engagement'
+            });
+        }
+    } catch (error) {
+        console.error('Engagement prediction error:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Failed to predict engagement'
+        });
+    }
 });
 
 module.exports = router; 

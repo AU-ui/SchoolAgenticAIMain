@@ -462,4 +462,54 @@ router.post('/:userId/reactivate', authenticateToken, requireAdminAccess, async 
   }
 });
 
+// Get current user info with tenant logo (for Teacher/Student dashboards)
+router.get('/me', authenticateToken, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const result = await query(`
+      SELECT u.id, u.email, u.first_name, u.last_name, u.role, u.tenant_id,
+             t.name as tenant_name, t.logo_url
+      FROM users u
+      LEFT JOIN tenants t ON u.tenant_id = t.id
+      WHERE u.id = $1
+    `, [userId]);
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found'
+      });
+    }
+
+    const user = result.rows[0];
+    
+    // Only include logo for teacher and student roles
+    const responseData = {
+      id: user.id,
+      email: user.email,
+      firstName: user.first_name,
+      lastName: user.last_name,
+      role: user.role,
+      tenantId: user.tenant_id,
+      tenantName: user.tenant_name
+    };
+
+    // Add logo only for teacher and student dashboards
+    if (['teacher', 'student'].includes(user.role)) {
+      responseData.logoUrl = user.logo_url;
+    }
+
+    res.json({
+      success: true,
+      user: responseData
+    });
+  } catch (error) {
+    console.error('Get user info error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Internal server error'
+    });
+  }
+});
+
 module.exports = router; 

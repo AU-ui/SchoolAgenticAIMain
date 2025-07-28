@@ -3,8 +3,8 @@ from fastapi.middleware.cors import CORSMiddleware
 import uvicorn
 from contextlib import asynccontextmanager
 
-from api.teacher_ml import router as teacher_router
-from api.parent_ml import router as parent_router
+from src.api.teacher_ml import router as teacher_router
+from src.api.parent_ml import router as parent_router
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -37,7 +37,7 @@ app.add_middleware(
 )
 
 # Include routers
-app.include_router(teacher_router, prefix="/api")
+app.include_router(teacher_router)
 app.include_router(parent_router, prefix="/api")
 
 @app.get("/")
