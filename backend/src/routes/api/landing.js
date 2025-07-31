@@ -122,7 +122,6 @@ router.post('/contact', async (req, res) => {
     }
 
     // Store contact inquiry (you might want to create a contacts table)
-    // For now, we'll just log it
     console.log('Contact inquiry received:', {
       name,
       email,
@@ -131,6 +130,108 @@ router.post('/contact', async (req, res) => {
       schoolId,
       timestamp: new Date().toISOString()
     });
+
+    // Send email notification to admin
+    const emailService = require('../../services/emailService');
+    
+    const contactEmailTemplate = {
+      subject: 'New Contact Form Submission - EdTech Platform',
+      html: `
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <meta charset="utf-8">
+          <meta name="viewport" content="width=device-width, initial-scale=1.0">
+          <title>New Contact Form Submission</title>
+          <style>
+            body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+            .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+            .header { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 30px; text-align: center; border-radius: 10px 10px 0 0; }
+            .content { background: #f8f9fa; padding: 30px; border-radius: 0 0 10px 10px; }
+            .contact-details { background: white; padding: 20px; border-radius: 8px; margin: 20px 0; }
+            .contact-details h3 { margin-top: 0; color: #667eea; }
+            .contact-details p { margin: 10px 0; }
+            .message-box { background: #e8f4fd; padding: 15px; border-radius: 8px; margin: 15px 0; border-left: 4px solid #667eea; }
+            .footer { text-align: center; margin-top: 30px; color: #666; font-size: 14px; }
+          </style>
+        </head>
+        <body>
+          <div class="container">
+            <div class="header">
+              <h1>📧 New Contact Form Submission</h1>
+              <p>EdTech Platform</p>
+            </div>
+            <div class="content">
+              <h2>Hello Admin!</h2>
+              <p>A new contact form has been submitted on the EdTech Platform landing page.</p>
+              
+              <div class="contact-details">
+                <h3>Contact Information</h3>
+                <p><strong>Name:</strong> ${name}</p>
+                <p><strong>Email:</strong> ${email}</p>
+                ${phone ? `<p><strong>Phone:</strong> ${phone}</p>` : ''}
+                ${schoolId ? `<p><strong>School ID:</strong> ${schoolId}</p>` : ''}
+                <p><strong>Submitted:</strong> ${new Date().toLocaleString()}</p>
+              </div>
+              
+              <div class="message-box">
+                <h3>Message:</h3>
+                <p>${message.replace(/\n/g, '<br>')}</p>
+              </div>
+              
+              <p>Please respond to this inquiry as soon as possible.</p>
+            </div>
+            <div class="footer">
+              <p>© 2024 EdTech Platform. All rights reserved.</p>
+            </div>
+          </div>
+        </body>
+        </html>
+      `,
+      text: `
+        New Contact Form Submission - EdTech Platform
+        
+        Hello Admin!
+        
+        A new contact form has been submitted on the EdTech Platform landing page.
+        
+        Contact Information:
+        Name: ${name}
+        Email: ${email}
+        ${phone ? `Phone: ${phone}` : ''}
+        ${schoolId ? `School ID: ${schoolId}` : ''}
+        Submitted: ${new Date().toLocaleString()}
+        
+        Message:
+        ${message}
+        
+        Please respond to this inquiry as soon as possible.
+        
+        © 2024 EdTech Platform. All rights reserved.
+      `
+    };
+
+    // Send email to admin
+    try {
+      const emailResult = await emailService.sendEmail('newanilupadhyay@gmail.com', 'custom', contactEmailTemplate);
+      
+      if (!emailResult.success) {
+        console.error('Email sending failed:', emailResult.error);
+        // Still return success to user, but log the email error
+      } else {
+        console.log('✅ Email sent successfully to newanilupadhyay@gmail.com');
+      }
+    } catch (emailError) {
+      console.error('❌ Email service error:', emailError);
+      // Log the contact data for manual review
+      console.log('📧 Contact Form Data (Email failed):', {
+        name,
+        email,
+        phone,
+        message,
+        timestamp: new Date().toISOString()
+      });
+    }
 
     res.json({
       success: true,
@@ -228,6 +329,89 @@ router.get('/tenant-logo/:schoolCode', async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Internal server error'
+    });
+  }
+});
+
+// @route   GET /api/landing/test-email
+// @desc    Test email configuration
+// @access  Public
+router.get('/test-email', async (req, res) => {
+  try {
+    const emailService = require('../../services/emailService');
+    
+    // Test email template
+    const testEmailTemplate = {
+      subject: 'Test Email - EdTech Platform',
+      html: `
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <meta charset="utf-8">
+          <meta name="viewport" content="width=device-width, initial-scale=1.0">
+          <title>Test Email</title>
+          <style>
+            body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+            .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+            .header { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 30px; text-align: center; border-radius: 10px 10px 0 0; }
+            .content { background: #f8f9fa; padding: 30px; border-radius: 0 0 10px 10px; }
+            .footer { text-align: center; margin-top: 30px; color: #666; font-size: 14px; }
+          </style>
+        </head>
+        <body>
+          <div class="container">
+            <div class="header">
+              <h1>📧 Test Email</h1>
+              <p>EdTech Platform</p>
+            </div>
+            <div class="content">
+              <h2>Hello Admin!</h2>
+              <p>This is a test email to verify the email configuration is working properly.</p>
+              <p><strong>Timestamp:</strong> ${new Date().toLocaleString()}</p>
+            </div>
+            <div class="footer">
+              <p>© 2024 EdTech Platform. All rights reserved.</p>
+            </div>
+          </div>
+        </body>
+        </html>
+      `,
+      text: `
+        Test Email - EdTech Platform
+        
+        Hello Admin!
+        
+        This is a test email to verify the email configuration is working properly.
+        
+        Timestamp: ${new Date().toLocaleString()}
+        
+        © 2024 EdTech Platform. All rights reserved.
+      `
+    };
+
+    // Send test email
+    const emailResult = await emailService.sendEmail('newanilupadhyay@gmail.com', 'custom', testEmailTemplate);
+    
+    if (emailResult.success) {
+      res.json({
+        success: true,
+        message: 'Test email sent successfully!',
+        messageId: emailResult.messageId
+      });
+    } else {
+      res.status(500).json({
+        success: false,
+        message: 'Failed to send test email',
+        error: emailResult.error
+      });
+    }
+
+  } catch (error) {
+    console.error('Test email error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Internal server error',
+      error: error.message
     });
   }
 });

@@ -10,12 +10,12 @@ from src.api.parent_ml import router as parent_router
 async def lifespan(app: FastAPI):
     # Startup
     print("🚀 Starting ML Services for EdTech Platform...")
-    print("�� Teacher Analytics: ✅ Loaded")
+    print("📊 Teacher Analytics: ✅ Loaded")
     print("👨‍👩‍👧‍👦 Parent Analytics: ✅ Loaded")
-    print("�� Sentiment Analysis: ✅ Loaded")
+    print("😊 Sentiment Analysis: ✅ Loaded")
     print("🌐 Translation Services: ✅ Loaded")
-    print("�� Engagement Predictor: ✅ Loaded")
-    print("�� Language Detection: ✅ Loaded")
+    print("📈 Engagement Predictor: ✅ Loaded")
+    print("🔤 Language Detection: ✅ Loaded")
     yield
     # Shutdown
     print("🛑 Shutting down ML Services...")

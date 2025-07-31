@@ -284,6 +284,68 @@ router.get('/attendance/session/:sessionId', authenticateToken, requireRole(['te
   }
 });
 
+// POST /api/teacher/attendance
+router.post('/attendance', authenticateToken, requireRole(['teacher']), async (req, res) => {
+  try {
+    const { attendance } = req.body;
+    const { id: teacherId } = req.user;
+    
+    if (!attendance || !Array.isArray(attendance)) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'Attendance data is required and must be an array' 
+      });
+    }
+    
+    // Process each attendance record
+    for (const record of attendance) {
+      const { student_id, class_id, date, status } = record;
+      
+      // Verify the class belongs to the teacher
+      const classQuery = `
+        SELECT id FROM classes 
+        WHERE id = $1 AND teacher_id = $2 AND is_active = true
+      `;
+      const classResult = await query(classQuery, [class_id, teacherId]);
+      
+      if (classResult.rows.length === 0) {
+        return res.status(403).json({ 
+          success: false, 
+          message: 'You can only mark attendance for your own classes' 
+        });
+      }
+      
+      // Check if attendance already exists for this student on this date
+      const existingQuery = `
+        SELECT id FROM attendance_records 
+        WHERE class_id = $1 AND student_id = $2 AND DATE(timestamp) = $3
+      `;
+      
+      const existingResult = await query(existingQuery, [class_id, student_id, date]);
+      
+      if (existingResult.rows.length > 0) {
+        // Update existing record
+        await query(`
+          UPDATE attendance_records 
+          SET status = $1, updated_at = NOW() 
+          WHERE id = $2
+        `, [status, existingResult.rows[0].id]);
+      } else {
+        // Create new record
+        await query(`
+          INSERT INTO attendance_records (class_id, student_id, status, timestamp)
+          VALUES ($1, $2, $3, $4)
+        `, [class_id, student_id, status, date]);
+      }
+    }
+    
+    res.json({ success: true, message: 'Attendance saved successfully' });
+  } catch (error) {
+    console.error('Attendance save error:', error);
+    res.status(500).json({ success: false, message: 'Internal server error' });
+  }
+});
+
 // POST /api/teacher/attendance/manual
 router.post('/attendance/manual', authenticateToken, requireRole(['teacher']), async (req, res) => {
   try {

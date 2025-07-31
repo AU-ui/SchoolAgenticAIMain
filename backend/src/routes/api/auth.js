@@ -167,26 +167,92 @@ router.post('/reset-password', async (req, res) => {
   }
 });
 
-// Token refresh endpoint
-router.post('/refresh-token', authenticateToken, async (req, res) => {
+// POST /api/auth/refresh - Refresh expired token
+router.post('/refresh', async (req, res) => {
   try {
+    const { refreshToken } = req.body;
+
+    if (!refreshToken) {
+      return res.status(400).json({
+        success: false,
+        message: 'Refresh token is required'
+      });
+    }
+
+    // Verify refresh token
+    const decoded = jwt.verify(refreshToken, process.env.JWT_REFRESH_SECRET || process.env.JWT_SECRET);
+    
+    // Get user from database
+    const userResult = await query(
+      'SELECT id, email, role, tenant_id, is_active FROM users WHERE id = $1',
+      [decoded.userId]
+    );
+
+    if (userResult.rows.length === 0) {
+      return res.status(401).json({
+        success: false,
+        message: 'User not found'
+      });
+    }
+
+    const user = userResult.rows[0];
+    
+    if (!user.is_active) {
+      return res.status(401).json({
+        success: false,
+        message: 'User account is deactivated'
+      });
+    }
+
+    // Generate new access token
     const newToken = jwt.sign(
-      { userId: req.user.id },
+      { 
+        userId: user.id,
+        email: user.email,
+        role: user.role,
+        tenantId: user.tenant_id
+      },
       process.env.JWT_SECRET,
       { expiresIn: '24h' }
     );
-    
+
+    // Generate new refresh token
+    const newRefreshToken = jwt.sign(
+      { userId: user.id },
+      process.env.JWT_REFRESH_SECRET || process.env.JWT_SECRET,
+      { expiresIn: '7d' }
+    );
+
     res.json({
       success: true,
-      token: newToken
+      message: 'Token refreshed successfully',
+      data: {
+        token: newToken,
+        refreshToken: newRefreshToken,
+        user: {
+          id: user.id,
+          email: user.email,
+          role: user.role,
+          tenantId: user.tenant_id
+        }
+      }
     });
-    } catch (error) {
+
+  } catch (error) {
     console.error('Token refresh error:', error);
-        res.status(500).json({
-            success: false,
-      message: 'Token refresh failed'
-        });
+    
+    if (error.name === 'TokenExpiredError') {
+      return res.status(401).json({
+        success: false,
+        message: 'Refresh token has expired. Please login again.'
+      });
     }
+    
+    res.status(500).json({
+      success: false,
+      message: 'Internal server error'
+    });
+  }
 });
 
 // Enhanced login with account lockout
@@ -242,11 +308,22 @@ router.post('/login', async (req, res) => {
       );
       clearAccountLockout(email);
 
-      // Generate JWT token
+      // Generate JWT token and refresh token
       const token = jwt.sign(
-        { userId: user.id },
+        { 
+          userId: user.id,
+          email: user.email,
+          role: user.role,
+          tenantId: user.tenant_id
+        },
         process.env.JWT_SECRET,
         { expiresIn: '24h' }
+      );
+
+      const refreshToken = jwt.sign(
+        { userId: user.id },
+        process.env.JWT_REFRESH_SECRET || process.env.JWT_SECRET,
+        { expiresIn: '7d' }
       );
 
       recordLoginAttempt(email, true);
@@ -255,6 +332,7 @@ router.post('/login', async (req, res) => {
         success: true,
         message: 'Login successful',
         token,
+        refreshToken,
         user: {
           id: user.id,
           email: user.email,
@@ -307,22 +385,34 @@ router.post('/login', async (req, res) => {
     const isDevelopmentMode = process.env.NODE_ENV === 'development' && !process.env.EMAIL_HOST;
     
     if (isDevelopmentMode) {
-      // Generate JWT token directly without email verification
+      // Generate JWT token and refresh token directly without email verification
       const token = jwt.sign(
-        { userId: user.id },
+        { 
+          userId: user.id,
+          email: user.email,
+          role: user.role,
+          tenantId: user.tenant_id
+        },
         process.env.JWT_SECRET,
         { expiresIn: '24h' }
+      );
+
+      const refreshToken = jwt.sign(
+        { userId: user.id },
+        process.env.JWT_REFRESH_SECRET || process.env.JWT_SECRET,
+        { expiresIn: '7d' }
       );
 
       recordLoginAttempt(email, true);
       
       return res.json({
-            success: true,
+        success: true,
         message: 'Login successful (Development Mode - Email verification bypassed)',
         token,
-                user: {
-                    id: user.id,
-                    email: user.email,
+        refreshToken,
+        user: {
+          id: user.id,
+          email: user.email,
           role: user.role,
           tenantId: user.tenant_id
         }

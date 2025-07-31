@@ -462,6 +462,267 @@ router.post('/:userId/reactivate', authenticateToken, requireAdminAccess, async 
   }
 });
 
+// PUT /api/users/profile - Update user profile
+router.put('/profile', authenticateToken, async (req, res) => {
+  try {
+    const { id: userId } = req.user;
+    const { firstName, lastName, email, phone, address, bio } = req.body;
+
+    // Validate required fields
+    if (!firstName || !lastName || !email) {
+      return res.status(400).json({
+        success: false,
+        message: 'First name, last name, and email are required'
+      });
+    }
+
+    // Check if email is already taken by another user
+    const emailCheckQuery = `
+      SELECT id FROM users 
+      WHERE email = $1 AND id != $2
+    `;
+    const emailCheckResult = await query(emailCheckQuery, [email, userId]);
+    
+    if (emailCheckResult.rows.length > 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'Email address is already in use'
+      });
+    }
+
+    // Update user profile
+    const updateQuery = `
+      UPDATE users 
+      SET 
+        first_name = $1,
+        last_name = $2,
+        email = $3,
+        phone = $4,
+        address = $5,
+        bio = $6,
+        updated_at = NOW()
+      WHERE id = $7
+      RETURNING id, first_name, last_name, email, phone, address, bio, role, tenant_id
+    `;
+
+    const result = await query(updateQuery, [
+      firstName, lastName, email, phone, address, bio, userId
+    ]);
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found'
+      });
+    }
+
+    res.json({
+      success: true,
+      message: 'Profile updated successfully',
+      user: result.rows[0]
+    });
+
+  } catch (error) {
+    console.error('Profile update error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Internal server error'
+    });
+  }
+});
+
+// PUT /api/users/password - Change user password
+router.put('/password', authenticateToken, async (req, res) => {
+  try {
+    const { id: userId } = req.user;
+    const { currentPassword, newPassword } = req.body;
+
+    // Validate input
+    if (!currentPassword || !newPassword) {
+      return res.status(400).json({
+        success: false,
+        message: 'Current password and new password are required'
+      });
+    }
+
+    if (newPassword.length < 6) {
+      return res.status(400).json({
+        success: false,
+        message: 'New password must be at least 6 characters long'
+      });
+    }
+
+    // Get current user to verify current password
+    const userQuery = `
+      SELECT password FROM users WHERE id = $1
+    `;
+    const userResult = await query(userQuery, [userId]);
+
+    if (userResult.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found'
+      });
+    }
+
+    // Verify current password
+    const bcrypt = require('bcryptjs');
+    const isValidPassword = await bcrypt.compare(currentPassword, userResult.rows[0].password);
+    
+    if (!isValidPassword) {
+      return res.status(400).json({
+        success: false,
+        message: 'Current password is incorrect'
+      });
+    }
+
+    // Hash new password
+    const saltRounds = 10;
+    const hashedPassword = await bcrypt.hash(newPassword, saltRounds);
+
+    // Update password
+    const updateQuery = `
+      UPDATE users 
+      SET password = $1, updated_at = NOW()
+      WHERE id = $2
+    `;
+
+    await query(updateQuery, [hashedPassword, userId]);
+
+    res.json({
+      success: true,
+      message: 'Password changed successfully'
+    });
+
+  } catch (error) {
+    console.error('Password change error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Internal server error'
+    });
+  }
+});
+
+// DELETE /api/users/account - Delete user account
+router.delete('/account', authenticateToken, async (req, res) => {
+  try {
+    const { id: userId } = req.user;
+    const { password, reason } = req.body;
+
+    // Validate input
+    if (!password) {
+      return res.status(400).json({
+        success: false,
+        message: 'Password is required to confirm account deletion'
+      });
+    }
+
+    // Get current user to verify password
+    const userQuery = `
+      SELECT password, role FROM users WHERE id = $1
+    `;
+    const userResult = await query(userQuery, [userId]);
+
+    if (userResult.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found'
+      });
+    }
+
+    // Verify password
+    const bcrypt = require('bcryptjs');
+    const isValidPassword = await bcrypt.compare(password, userResult.rows[0].password);
+    
+    if (!isValidPassword) {
+      return res.status(400).json({
+        success: false,
+        message: 'Password is incorrect'
+      });
+    }
+
+    // Check if user has important roles that shouldn't be deleted
+    const userRole = userResult.rows[0].role;
+    if (userRole === 'superadmin') {
+      return res.status(403).json({
+        success: false,
+        message: 'Super admin accounts cannot be deleted'
+      });
+    }
+
+    // Log the deletion reason if provided
+    if (reason) {
+      const logQuery = `
+        INSERT INTO user_deletion_logs (user_id, reason, deleted_at)
+        VALUES ($1, $2, NOW())
+      `;
+      await query(logQuery, [userId, reason]);
+    }
+
+    // Start transaction for safe deletion
+    await query('BEGIN');
+
+    try {
+      // Delete related records based on user role
+      if (userRole === 'teacher') {
+        // Remove teacher from classes
+        await query(`
+          UPDATE classes SET teacher_id = NULL WHERE teacher_id = $1
+        `, [userId]);
+        
+        // Delete teacher-specific records
+        await query(`
+          DELETE FROM teacher_tasks WHERE teacher_id = $1
+        `, [userId]);
+      } else if (userRole === 'student') {
+        // Delete student-specific records
+        await query(`
+          DELETE FROM students WHERE user_id = $1
+        `, [userId]);
+        
+        await query(`
+          DELETE FROM student_grades WHERE student_id = $1
+        `, [userId]);
+      } else if (userRole === 'parent') {
+        // Delete parent-specific records
+        await query(`
+          DELETE FROM parent_students WHERE parent_id = $1
+        `, [userId]);
+      }
+
+      // Delete attendance records
+      await query(`
+        DELETE FROM attendance_records WHERE student_id IN (
+          SELECT id FROM students WHERE user_id = $1
+        )
+      `, [userId]);
+
+      // Finally delete the user
+      await query(`
+        DELETE FROM users WHERE id = $1
+      `, [userId]);
+
+      await query('COMMIT');
+
+      res.json({
+        success: true,
+        message: 'Account deleted successfully'
+      });
+
+    } catch (error) {
+      await query('ROLLBACK');
+      throw error;
+    }
+
+  } catch (error) {
+    console.error('Account deletion error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Internal server error'
+    });
+  }
+});
+
 // Get current user info with tenant logo (for Teacher/Student dashboards)
 router.get('/me', authenticateToken, async (req, res) => {
   try {
