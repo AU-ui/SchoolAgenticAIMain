@@ -76,11 +76,10 @@ class EnhancedAIServices:
     
     def _load_or_train_models(self):
         """Load existing models or train new ones with enhanced data"""
-        try:
-            # Try to load existing models
-            self._load_models()
+        # Try to load existing models
+        if self._load_models():
             print("✅ Loaded existing trained models")
-        except:
+        else:
             print("🔄 Training new models with enhanced data...")
             self._train_enhanced_models()
             self._save_models()
@@ -112,7 +111,10 @@ class EnhancedAIServices:
         time_of_day = np.random.normal(14, 4, n_samples)  # Peak around 2 PM
         time_of_day = np.clip(time_of_day, 0, 23)
         
-        day_of_week = np.random.choice([0,1,2,3,4,5,6], n_samples, p=[0.1,0.15,0.15,0.15,0.15,0.15,0.15])  # Weekdays more likely
+        # Day of week probabilities (weekdays more likely)
+        day_probs = [0.1, 0.15, 0.15, 0.15, 0.15, 0.15, 0.15]
+        day_probs = [p/sum(day_probs) for p in day_probs]  # Normalize to sum to 1
+        day_of_week = np.random.choice([0,1,2,3,4,5,6], n_samples, p=day_probs)  # Weekdays more likely
         
         # Response time: faster during school hours, slower on weekends
         response_time = np.where(day_of_week < 5, 
@@ -195,7 +197,10 @@ class EnhancedAIServices:
         student_id = np.random.randint(1, 1000, n_samples)
         
         # Day of week: Monday and Friday have lower attendance
-        day_of_week = np.random.choice([0,1,2,3,4,5,6], n_samples, p=[0.85,0.92,0.94,0.93,0.91,0.88,0.95])
+        # Normalize probabilities to sum to 1
+        day_probs = [0.85, 0.92, 0.94, 0.93, 0.91, 0.88, 0.95]
+        day_probs = [p/sum(day_probs) for p in day_probs]  # Normalize to sum to 1
+        day_of_week = np.random.choice([0,1,2,3,4,5,6], n_samples, p=day_probs)
         
         # Time of day: morning classes have better attendance
         time_of_day = np.random.normal(10, 3, n_samples)
@@ -475,17 +480,30 @@ class EnhancedAIServices:
         for name in models:
             model_path = os.path.join(self.models_dir, f'{name}.pkl')
             if not os.path.exists(model_path):
-                raise FileNotFoundError(f"Model {name} not found")
+                print(f"⚠️  Model {name} not found, will train new model")
+                return False  # Indicate that models need to be trained
             
-            with open(model_path, 'rb') as f:
-                model = pickle.load(f)
-                setattr(self, name, model)
+            try:
+                with open(model_path, 'rb') as f:
+                    model = pickle.load(f)
+                    setattr(self, name, model)
+            except Exception as e:
+                print(f"⚠️  Error loading model {name}: {e}")
+                return False
         
         # Load performance data
         perf_path = os.path.join(self.models_dir, 'model_performance.pkl')
         if os.path.exists(perf_path):
-            with open(perf_path, 'rb') as f:
-                self.model_performance = pickle.load(f)
+            try:
+                with open(perf_path, 'rb') as f:
+                    self.model_performance = pickle.load(f)
+            except Exception as e:
+                print(f"⚠️  Error loading performance data: {e}")
+                self.model_performance = {'engagement_accuracy': [], 'performance_accuracy': [], 'attendance_accuracy': []}
+        else:
+            self.model_performance = {'engagement_accuracy': [], 'performance_accuracy': [], 'attendance_accuracy': []}
+        
+        return True  # Indicate successful loading
     
     # Include all the existing methods from the original class
     def analyze_sentiment(self, text: str) -> Dict[str, Any]:
