@@ -58,6 +58,100 @@ class QuestionData(BaseModel):
     explanation: Optional[str] = None
     board_specific: bool = True
 
+class PlagiarismDetectionRequest(BaseModel):
+    assignment_id: int
+    student_submissions: List[Dict[str, Any]]
+    reference_materials: Optional[List[str]] = None
+
+class GradingBiasRequest(BaseModel):
+    grades_data: List[Dict[str, Any]]
+    student_demographics: Optional[Dict[str, Any]] = None
+
+class PerformancePredictionRequest(BaseModel):
+    student_id: int
+    historical_data: List[Dict[str, Any]]
+    current_performance: Dict[str, Any]
+
+class PersonalizedFeedbackRequest(BaseModel):
+    student_id: int
+    assignment_data: Dict[str, Any]
+    performance_history: List[Dict[str, Any]]
+    learning_style: Optional[str] = "mixed"
+
+# NEW: Advanced Attendance Intelligence Models
+class AttendancePatternRequest(BaseModel):
+    teacher_id: int
+    class_id: int
+    date_range: Dict[str, str]
+    include_anomalies: bool = True
+
+class PredictiveAttendanceRequest(BaseModel):
+    teacher_id: int
+    class_id: int
+    student_ids: List[int]
+    prediction_days: int = 7
+
+class BehavioralAnalyticsRequest(BaseModel):
+    teacher_id: int
+    class_id: int
+    student_id: int
+    analysis_period: str = "month"
+
+class RiskAssessmentRequest(BaseModel):
+    teacher_id: int
+    class_id: int
+    risk_threshold: float = 0.7
+
+class TaskPrioritizationRequest(BaseModel):
+    teacher_id: int
+    tasks: List[Dict[str, Any]]
+    available_time: int
+    preferences: Dict[str, Any]
+
+class TimeEstimationRequest(BaseModel):
+    teacher_id: int
+    task_details: Dict[str, Any]
+    teacher_experience: str
+    available_resources: List[str]
+
+class ResourceAllocationRequest(BaseModel):
+    teacher_id: int
+    available_resources: Dict[str, Any]
+    tasks_requirements: List[Dict[str, Any]]
+    constraints: Dict[str, Any]
+
+class WorkflowOptimizationRequest(BaseModel):
+    teacher_id: int
+    current_workflow: Dict[str, Any]
+    optimization_goals: Dict[str, bool]
+    available_automation: List[str]
+
+class ResourceAnalyticsRequest(BaseModel):
+    teacher_id: int
+    resource_data: Dict[str, Any]
+    usage_period: str
+    include_patterns: bool = True
+
+class ContentRecommendationsRequest(BaseModel):
+    teacher_id: int
+    current_subject: str
+    class_level: str
+    student_performance: Dict[str, Any]
+    available_resources: List[str]
+    preferences: Dict[str, Any]
+
+class ResourceOptimizationRequest(BaseModel):
+    teacher_id: int
+    current_resources: Dict[str, Any]
+    optimization_goals: Dict[str, bool]
+    constraints: Dict[str, Any]
+
+class PerformanceTrackingRequest(BaseModel):
+    teacher_id: int
+    tracking_period: str
+    metrics: Dict[str, bool]
+    comparison_baseline: str
+
 @router.post("/attendance/analyze")
 async def analyze_attendance_patterns(attendance_data: List[AttendanceData]):
     """Analyze attendance patterns and provide insights"""
@@ -410,3 +504,290 @@ async def generate_interactive_pdf(
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Interactive PDF generation failed: {str(e)}") 
+
+@router.post("/grades/plagiarism-detection")
+async def detect_plagiarism(request: PlagiarismDetectionRequest):
+    """Detect plagiarism in student submissions using AI"""
+    try:
+        result = analytics.detect_plagiarism(
+            request.assignment_id,
+            request.student_submissions,
+            request.reference_materials
+        )
+        
+        return {
+            "success": True,
+            "data": result,
+            "message": "Plagiarism detection completed"
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Plagiarism detection failed: {str(e)}")
+
+@router.post("/grades/bias-detection")
+async def detect_grading_bias(request: GradingBiasRequest):
+    """Detect potential bias in grading patterns"""
+    try:
+        result = analytics.detect_grading_bias(
+            request.grades_data,
+            request.student_demographics
+        )
+        
+        return {
+            "success": True,
+            "data": result,
+            "message": "Grading bias analysis completed"
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Bias detection failed: {str(e)}")
+
+@router.post("/grades/performance-prediction")
+async def predict_student_performance_grade(request: PerformancePredictionRequest):
+    """Predict student performance for specific assignments"""
+    try:
+        result = analytics.predict_student_performance_grade(
+            request.student_id,
+            request.historical_data,
+            request.current_performance
+        )
+        
+        return {
+            "success": True,
+            "data": result,
+            "message": "Performance prediction completed"
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Performance prediction failed: {str(e)}")
+
+@router.post("/grades/personalized-feedback")
+async def generate_personalized_feedback(request: PersonalizedFeedbackRequest):
+    """Generate personalized feedback for students"""
+    try:
+        result = analytics.generate_personalized_feedback(
+            request.student_id,
+            request.assignment_data,
+            request.performance_history,
+            request.learning_style
+        )
+        
+        return {
+            "success": True,
+            "data": result,
+            "message": "Personalized feedback generated"
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Feedback generation failed: {str(e)}")
+
+@router.get("/grades/analytics/{teacher_id}")
+async def get_grade_analytics(teacher_id: int):
+    """Get comprehensive grade analytics for a teacher"""
+    try:
+        result = analytics.get_grade_analytics(teacher_id)
+        
+        return {
+            "success": True,
+            "data": result,
+            "message": "Grade analytics retrieved"
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Grade analytics failed: {str(e)}")
+
+# NEW: Advanced Attendance Intelligence Endpoints
+@router.post("/attendance/pattern-analysis")
+async def analyze_attendance_patterns_advanced(request: AttendancePatternRequest):
+    """Advanced attendance pattern analysis with anomaly detection"""
+    try:
+        result = analytics.analyze_attendance_patterns_advanced(
+            request.teacher_id,
+            request.class_id,
+            request.date_range,
+            request.include_anomalies
+        )
+        
+        return {
+            "success": True,
+            "data": result,
+            "message": "Advanced attendance pattern analysis completed"
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Pattern analysis failed: {str(e)}")
+
+@router.post("/attendance/predictive")
+async def predict_attendance(request: PredictiveAttendanceRequest):
+    """Predict student attendance for future dates"""
+    try:
+        result = analytics.predict_attendance(
+            request.teacher_id,
+            request.class_id,
+            request.student_ids,
+            request.prediction_days
+        )
+        
+        return {
+            "success": True,
+            "data": result,
+            "message": "Attendance prediction completed"
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Attendance prediction failed: {str(e)}")
+
+@router.post("/attendance/behavioral-analytics")
+async def analyze_behavioral_patterns(request: BehavioralAnalyticsRequest):
+    """Analyze student behavioral patterns and engagement"""
+    try:
+        result = analytics.analyze_behavioral_patterns(
+            request.teacher_id,
+            request.class_id,
+            request.student_id,
+            request.analysis_period
+        )
+        
+        return {
+            "success": True,
+            "data": result,
+            "message": "Behavioral analytics completed"
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Behavioral analytics failed: {str(e)}")
+
+@router.post("/attendance/risk-assessment")
+async def assess_attendance_risk(request: RiskAssessmentRequest):
+    """Assess risk of chronic absenteeism"""
+    try:
+        result = analytics.assess_attendance_risk(
+            request.teacher_id,
+            request.class_id,
+            request.risk_threshold
+        )
+        
+        return {
+            "success": True,
+            "data": result,
+            "message": "Risk assessment completed"
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Risk assessment failed: {str(e)}")
+
+@router.get("/attendance/analytics/{teacher_id}")
+async def get_attendance_analytics(teacher_id: int):
+    """Get comprehensive attendance analytics for a teacher"""
+    try:
+        analytics = await get_attendance_analytics(teacher_id)
+        return {"success": True, "data": analytics}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+# NEW: Smart Task Optimization Endpoints
+@router.post("/tasks/prioritize")
+async def prioritize_tasks(request: TaskPrioritizationRequest):
+    """AI-powered task prioritization and scheduling"""
+    try:
+        result = await prioritize_tasks_ai(
+            request.teacher_id,
+            request.tasks,
+            request.available_time,
+            request.preferences
+        )
+        return {"success": True, "data": result}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.post("/tasks/time-estimation")
+async def estimate_task_time(request: TimeEstimationRequest):
+    """AI-powered time estimation for tasks"""
+    try:
+        result = await estimate_task_time_ai(
+            request.teacher_id,
+            request.task_details,
+            request.teacher_experience,
+            request.available_resources
+        )
+        return {"success": True, "data": result}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.post("/tasks/resource-allocation")
+async def optimize_resource_allocation(request: ResourceAllocationRequest):
+    """Optimal resource allocation and scheduling"""
+    try:
+        result = await optimize_resource_allocation_ai(
+            request.teacher_id,
+            request.available_resources,
+            request.tasks_requirements,
+            request.constraints
+        )
+        return {"success": True, "data": result}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.post("/tasks/workflow-optimization")
+async def optimize_workflow(request: WorkflowOptimizationRequest):
+    """Streamlined workflow management and automation"""
+    try:
+        result = await optimize_workflow_ai(
+            request.teacher_id,
+            request.current_workflow,
+            request.optimization_goals,
+            request.available_automation
+        )
+        return {"success": True, "data": result}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+# NEW: Resource Intelligence Endpoints
+@router.post("/resources/analytics")
+async def analyze_resource_usage(request: ResourceAnalyticsRequest):
+    """Analyze resource usage patterns and provide insights"""
+    try:
+        result = await analyze_resource_usage_ai(
+            request.teacher_id,
+            request.resource_data,
+            request.usage_period,
+            request.include_patterns
+        )
+        return {"success": True, "data": result}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.post("/resources/recommendations")
+async def get_content_recommendations(request: ContentRecommendationsRequest):
+    """Get AI-powered content recommendations"""
+    try:
+        result = await get_content_recommendations_ai(
+            request.teacher_id,
+            request.current_subject,
+            request.class_level,
+            request.student_performance,
+            request.available_resources,
+            request.preferences
+        )
+        return {"success": True, "data": result}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.post("/resources/optimize")
+async def optimize_resources(request: ResourceOptimizationRequest):
+    """Optimize resource allocation and management"""
+    try:
+        result = await optimize_resources_ai(
+            request.teacher_id,
+            request.current_resources,
+            request.optimization_goals,
+            request.constraints
+        )
+        return {"success": True, "data": result}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.post("/resources/performance")
+async def track_resource_performance(request: PerformanceTrackingRequest):
+    """Track resource performance and effectiveness"""
+    try:
+        result = await track_resource_performance_ai(
+            request.teacher_id,
+            request.tracking_period,
+            request.metrics,
+            request.comparison_baseline
+        )
+        return {"success": True, "data": result}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e)) 

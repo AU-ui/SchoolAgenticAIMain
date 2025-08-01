@@ -17,6 +17,8 @@ const userRoutes = require('./routes/api/users');
 const superadminRoutes = require('./routes/api/superadmin');
 const teacherRoutes = require('./routes/api/teacher');
 const parentRoutes = require('./routes/api/parent');
+const studentRoutes = require('./routes/api/student');
+const administratorRoutes = require('./routes/api/administrator');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -117,6 +119,8 @@ app.use('/api/users', userRoutes);
 app.use('/api/superadmin', superadminRoutes);
 app.use('/api/teacher', teacherRoutes);
 app.use('/api/parent', parentRoutes);
+app.use('/api/student', studentRoutes);
+app.use('/api/administrator', administratorRoutes);
 
 // 404 handler
 app.use('*', (req, res) => {
