@@ -1029,4 +1029,120 @@ router.post('/students/:studentId/update-details', authenticateToken, requireRol
   }
 });
 
+// POST /api/teacher/student-report/generate
+router.post('/student-report/generate', authenticateToken, requireRole(['teacher']), async (req, res) => {
+  try {
+    const { studentName, subject, grade, attendanceRate, performance, comments } = req.body;
+    
+    // Validate required fields
+    if (!studentName || !subject || !grade) {
+      return res.status(400).json({
+        success: false,
+        message: 'Student name, subject, and grade are required'
+      });
+    }
+
+    // Generate comprehensive student report
+    const report = {
+      studentName,
+      subject,
+      grade,
+      attendanceRate: attendanceRate || 0.95,
+      performance: performance || 'Good',
+      comments: comments || '',
+      generatedAt: new Date().toISOString(),
+      reportId: `SR-${Date.now()}`,
+      
+      // Academic Performance Summary
+      academicSummary: {
+        overallGrade: grade,
+        subjectPerformance: {
+          [subject]: {
+            grade: grade,
+            attendance: `${(attendanceRate * 100).toFixed(1)}%`,
+            performance: performance
+          }
+        },
+        strengths: [
+          'Consistent attendance',
+          'Active participation in class',
+          'Good understanding of core concepts'
+        ],
+        areasForImprovement: [
+          'Could benefit from additional practice',
+          'Consider joining study groups',
+          'Review previous topics regularly'
+        ]
+      },
+      
+      // Detailed Analysis
+      detailedAnalysis: {
+        attendanceAnalysis: {
+          rate: `${(attendanceRate * 100).toFixed(1)}%`,
+          status: attendanceRate >= 0.9 ? 'Excellent' : attendanceRate >= 0.8 ? 'Good' : 'Needs Improvement',
+          impact: attendanceRate >= 0.9 ? 'Positive impact on learning' : 'May affect academic progress'
+        },
+        performanceAnalysis: {
+          level: performance,
+          trend: performance === 'Excellent' ? 'Improving' : performance === 'Good' ? 'Stable' : 'Needs Attention',
+          recommendations: performance === 'Excellent' ? 
+            ['Continue current study habits', 'Consider advanced topics', 'Mentor other students'] :
+            performance === 'Good' ? 
+            ['Maintain consistency', 'Focus on weak areas', 'Seek help when needed'] :
+            ['Increase study time', 'Attend extra classes', 'Work with teachers']
+        }
+      },
+      
+      // Recommendations
+      recommendations: {
+        immediate: [
+          'Review current topics regularly',
+          'Complete all assignments on time',
+          'Participate actively in class discussions'
+        ],
+        shortTerm: [
+          'Focus on improving weak areas',
+          'Develop better study habits',
+          'Seek clarification when needed'
+        ],
+        longTerm: [
+          'Set academic goals',
+          'Develop time management skills',
+          'Build strong foundation for future learning'
+        ]
+      },
+      
+      // Parent Communication
+      parentCommunication: {
+        keyPoints: [
+          `${studentName} is performing ${performance.toLowerCase()} in ${subject}`,
+          `Attendance rate is ${(attendanceRate * 100).toFixed(1)}%`,
+          `Current grade: ${grade}`,
+          comments ? `Additional notes: ${comments}` : 'No additional comments'
+        ],
+        suggestions: [
+          'Monitor homework completion',
+          'Encourage regular study habits',
+          'Maintain open communication with teachers',
+          'Support participation in school activities'
+        ]
+      }
+    };
+
+    res.json({
+      success: true,
+      message: 'Student report generated successfully',
+      data: report
+    });
+
+  } catch (error) {
+    console.error('Error generating student report:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to generate student report',
+      error: error.message
+    });
+  }
+});
+
 module.exports = router; 
