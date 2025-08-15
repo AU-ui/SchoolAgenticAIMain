@@ -100,6 +100,18 @@ CREATE TABLE IF NOT EXISTS student_grades (
     updated_at TIMESTAMP DEFAULT NOW()
 );
 
+CREATE TABLE IF NOT EXISTS assignment_submissions (
+    id SERIAL PRIMARY KEY,
+    assignment_id INTEGER REFERENCES assignments(id) ON DELETE CASCADE,
+    student_id INTEGER REFERENCES students(id) ON DELETE CASCADE,
+    submission_text TEXT,
+    file_url VARCHAR(500),
+    submitted_at TIMESTAMP DEFAULT NOW(),
+    created_at TIMESTAMP DEFAULT NOW(),
+    updated_at TIMESTAMP DEFAULT NOW(),
+    UNIQUE(assignment_id, student_id)
+);
+
 -- Smart Timetable Management
 CREATE TABLE IF NOT EXISTS class_schedules (
     id SERIAL PRIMARY KEY,

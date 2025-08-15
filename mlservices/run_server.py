@@ -10,11 +10,12 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 if __name__ == "__main__":
     import uvicorn
-    from src.main import app
+    from standalone_server import app
     
-    print("🚀 Starting ML Services Server...")
+    print("🚀 Starting Standalone ML Services Server...")
     print("📍 Server will be available at: http://localhost:8000")
     print("🔍 Health check: http://localhost:8000/health")
+    print("📊 Free AI Reports: http://localhost:8000/ml/free-ai/reports/generate")
     
     uvicorn.run(
         app,

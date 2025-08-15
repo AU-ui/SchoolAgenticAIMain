@@ -636,25 +636,37 @@ class FreeAIContentGenerator:
             "confidence": random.randint(85, 95)
         }
     
-    def generate_assignment(self, subject: str, grade: str, topic: str, difficulty: str = "medium") -> Dict[str, Any]:
-        """Generate educational assignment"""
-        # Generate questions based on subject and topic
-        questions = self._generate_questions(subject, topic, difficulty, grade)
+    def generate_assignment(self, board: str, subject: str, grade: str, topic: str, difficulty: str = "medium") -> Dict[str, Any]:
+        """Generate educational assignment with board-specific content"""
+        # Generate board-specific questions based on syllabus
+        questions = self._generate_board_specific_questions(board, subject, topic, difficulty, grade)
+        
+        # Calculate total points
+        total_points = sum(question.get('points', 10) for question in questions)
+        
+        # Generate due date (7 days from now)
+        from datetime import datetime, timedelta
+        due_date = (datetime.now() + timedelta(days=7)).strftime("%B %d, %Y")
         
         assignment = {
-            "title": f"{topic} Assignment - {subject}",
-            "grade": grade,
+            "title": f"{topic} Assignment - {subject} ({board})",
+            "board": board,
+            "subject": subject,
+            "grade_level": grade,
             "difficulty": difficulty,
-            "instructions": f"Complete the following {topic} problems in {subject}. Show all your work and explain your reasoning.",
+            "instructions": f"Complete the following {topic} problems in {subject} according to {board} syllabus. Show all your work and explain your reasoning.",
             "questions": questions,
             "rubric": self._generate_rubric(difficulty),
             "estimated_time": self._estimate_completion_time(grade, difficulty, len(questions)),
-            "learning_objectives": self._generate_learning_objectives(subject, topic)
+            "learning_objectives": self._generate_board_learning_objectives(board, subject, topic),
+            "total_points": total_points,
+            "due_date": due_date
         }
         
         return {
             "success": True,
             "assignment": assignment,
+            "board": board,
             "subject": subject,
             "grade": grade,
             "topic": topic,
@@ -936,62 +948,460 @@ class FreeAIContentGenerator:
         
         return random.choice(grade_progression.get(current_grade, ['B', 'C+']))
     
-    def _generate_questions(self, subject: str, topic: str, difficulty: str, grade: str) -> List[str]:
+    def _generate_questions(self, subject: str, topic: str, difficulty: str, grade: str) -> List[Dict[str, Any]]:
         """Generate questions based on subject and topic"""
         question_templates = {
-            "Mathematics": [
-                f"Solve the {topic} problem: [Problem description]",
-                f"Explain how to apply {topic} in real-world situations",
-                f"Compare and contrast different {topic} methods",
-                f"Create a {topic} problem and solve it"
-            ],
+            "Mathematics": {
+                "Algebra": [
+                    f"Solve the equation: 2x + 5 = 13. Show your work step by step.",
+                    f"Factor the quadratic expression: x² + 6x + 8",
+                    f"Find the value of y when x = 3 in the equation y = 2x² - 4x + 1",
+                    f"Solve the system of equations: 2x + y = 7 and x - y = 1"
+                ],
+                "Geometry": [
+                    f"Calculate the area of a rectangle with length 8 cm and width 5 cm.",
+                    f"Find the perimeter of a triangle with sides 6 cm, 8 cm, and 10 cm.",
+                    f"Calculate the volume of a cube with side length 4 units.",
+                    f"Find the circumference of a circle with radius 7 cm. (Use π = 3.14)"
+                ],
+                "Trigonometry": [
+                    f"Find the sine, cosine, and tangent of angle 30°.",
+                    f"In a right triangle, if the opposite side is 6 and hypotenuse is 10, find the sine of the angle.",
+                    f"Solve for x: sin(x) = 0.5, where 0° ≤ x ≤ 360°.",
+                    f"In triangle ABC, if angle A = 45°, angle B = 60°, and side a = 8, find side b using the sine law."
+                ],
+                "Polynomial": [
+                    f"Add the polynomials: (3x² + 2x - 5) + (2x² - 3x + 4)",
+                    f"Multiply the polynomials: (x + 3)(x - 2)",
+                    f"Factor the polynomial: x² - 9",
+                    f"Find the roots of the equation: x² - 5x + 6 = 0"
+                ],
+                "Fractions": [
+                    f"Add the fractions: 3/4 + 2/3. Show your work.",
+                    f"Multiply the fractions: 2/5 × 3/8",
+                    f"Divide the fractions: 3/4 ÷ 2/3",
+                    f"Convert 0.75 to a fraction in simplest form."
+                ],
+                "Decimals": [
+                    f"Add the decimals: 2.45 + 1.78",
+                    f"Multiply: 3.2 × 4.5",
+                    f"Divide: 15.6 ÷ 3",
+                    f"Round 7.894 to the nearest hundredth."
+                ],
+                "Percentages": [
+                    f"Calculate 25% of 80.",
+                    f"If 15% of a number is 45, what is the number?",
+                    f"A shirt costs $40. If it's on sale for 20% off, what is the sale price?",
+                    f"Express 3/5 as a percentage."
+                ]
+            },
             "Science": [
-                f"Describe the {topic} process and its importance",
-                f"Explain how {topic} relates to everyday life",
-                f"Analyze the factors that affect {topic}",
-                f"Design an experiment to test {topic} concepts"
+                f"Describe the {topic} process and its importance in nature.",
+                f"Explain how {topic} relates to everyday life. Give specific examples.",
+                f"Analyze the factors that affect {topic}. What are the main variables?",
+                f"Design an experiment to test {topic} concepts. Include hypothesis and procedure."
             ],
             "English": [
-                f"Analyze the {topic} in the provided text",
-                f"Write a paragraph using {topic} techniques",
-                f"Identify examples of {topic} in literature",
-                f"Create a story incorporating {topic} elements"
-            ]
+                f"Analyze the {topic} in the provided text. Identify key elements and their significance.",
+                f"Write a paragraph using {topic} techniques. Focus on clarity and coherence.",
+                f"Identify examples of {topic} in literature. How do they enhance the text?",
+                f"Create a story incorporating {topic} elements. Be creative and engaging."
+            ],
+            "History": self._generate_history_questions(topic, difficulty)
         }
         
-        templates = question_templates.get(subject, [
-            f"Explain the concept of {topic}",
-            f"Provide examples of {topic}",
-            f"Analyze the importance of {topic}",
-            f"Apply {topic} concepts to real situations"
-        ])
+        # For Mathematics, use topic-specific templates with difficulty levels
+        if subject == "Mathematics":
+            templates = self._generate_math_questions(topic, difficulty)
+        else:
+            templates = question_templates.get(subject, [
+                f"Explain the concept of {topic} in detail.",
+                f"Provide specific examples of {topic} and their applications.",
+                f"Analyze the importance of {topic} in today's world.",
+                f"Apply {topic} concepts to real situations. Show your reasoning."
+            ])
         
         num_questions = 3 if difficulty == "easy" else 4 if difficulty == "medium" else 5
-        return random.sample(templates, min(num_questions, len(templates)))
+        selected_templates = random.sample(templates, min(num_questions, len(templates)))
+        
+        # Convert to objects with question and points
+        questions = []
+        for i, template in enumerate(selected_templates):
+            points = 10 if difficulty == "easy" else 15 if difficulty == "medium" else 20
+            questions.append({
+                "question": template,
+                "points": points
+            })
+        
+        return questions
     
-    def _generate_rubric(self, difficulty: str) -> Dict[str, str]:
+    def _generate_math_questions(self, topic: str, difficulty: str = "medium") -> List[str]:
+        """Generate mathematics questions based on topic and difficulty level"""
+        topic_lower = topic.lower()
+        
+        # Algebra questions with difficulty levels
+        if any(keyword in topic_lower for keyword in ["algebra", "equation", "quadratic", "linear", "polynomial"]):
+            if difficulty == "easy":
+                return [
+                    "Solve the simple equation: x + 5 = 12",
+                    "Find the value of y when x = 2 in the equation y = 3x + 1",
+                    "Simplify the expression: 2x + 3x + 5",
+                    "Solve: 2x - 4 = 8",
+                    "What is the value of x if 3x = 15?"
+                ]
+            elif difficulty == "medium":
+                return [
+                    "Solve the equation: 2x + 5 = 13. Show your work step by step.",
+                    "Factor the quadratic expression: x² + 6x + 8",
+                    "Find the value of y when x = 3 in the equation y = 2x² - 4x + 1",
+                    "Solve the system of equations: 2x + y = 7 and x - y = 1",
+                    "Add the polynomials: (3x² + 2x - 5) + (2x² - 3x + 4)"
+                ]
+            else:  # hard
+                return [
+                    "Solve the complex quadratic equation: 2x² - 7x + 3 = 0 using the quadratic formula",
+                    "Find all real solutions to the equation: x³ - 6x² + 11x - 6 = 0",
+                    "Solve the system of three equations: x + y + z = 6, 2x + y - z = 1, x - y + 2z = 5",
+                    "Prove that the sum of two consecutive odd integers is divisible by 4",
+                    "Find the domain and range of the function f(x) = √(x² - 4)"
+                ]
+        
+        # Geometry questions
+        elif any(keyword in topic_lower for keyword in ["geometry", "area", "perimeter", "volume", "circle", "triangle"]):
+            if difficulty == "easy":
+                return [
+                    "Calculate the area of a rectangle with length 6 cm and width 4 cm",
+                    "Find the perimeter of a square with side length 5 cm",
+                    "Calculate the area of a triangle with base 8 cm and height 6 cm",
+                    "Find the circumference of a circle with radius 3 cm (use π = 3.14)",
+                    "Calculate the volume of a cube with side length 3 units"
+                ]
+            elif difficulty == "medium":
+                return [
+                    "Calculate the area of a rectangle with length 8 cm and width 5 cm.",
+                    "Find the perimeter of a triangle with sides 6 cm, 8 cm, and 10 cm.",
+                    "Calculate the volume of a cube with side length 4 units.",
+                    "Find the circumference of a circle with radius 7 cm. (Use π = 3.14)",
+                    "Calculate the area of a circle with diameter 10 cm"
+                ]
+            else:  # hard
+                return [
+                    "Prove that the area of a triangle is half the product of its base and height",
+                    "Find the area of a regular hexagon with side length 6 cm",
+                    "Calculate the volume of a cylinder with radius 5 cm and height 12 cm",
+                    "Prove that the sum of the angles in a triangle is 180 degrees",
+                    "Find the surface area of a sphere with radius 8 cm"
+                ]
+        
+        # Trigonometry questions
+        elif any(keyword in topic_lower for keyword in ["trigonometry", "trig", "sine", "cosine", "tangent"]):
+            if difficulty == "easy":
+                return [
+                    "Find the sine of 30 degrees",
+                    "What is the cosine of 0 degrees?",
+                    "Find the tangent of 45 degrees",
+                    "In a right triangle, if the opposite side is 3 and hypotenuse is 5, find the sine",
+                    "What is the sine of 90 degrees?"
+                ]
+            elif difficulty == "medium":
+                return [
+                    "Find the sine, cosine, and tangent of angle 30°.",
+                    "In a right triangle, if the opposite side is 6 and hypotenuse is 10, find the sine of the angle.",
+                    "Solve for x: sin(x) = 0.5, where 0° ≤ x ≤ 360°.",
+                    "In triangle ABC, if angle A = 45°, angle B = 60°, and side a = 8, find side b using the sine law."
+                ]
+            else:  # hard
+                return [
+                    "Prove the trigonometric identity: sin²θ + cos²θ = 1",
+                    "Solve the equation: 2sin²x - sinx - 1 = 0 for 0° ≤ x ≤ 360°",
+                    "Find all solutions to the equation: tan(2x) = 1 in the interval [0, 2π]",
+                    "Prove that sin(A+B) = sinAcosB + cosAsinB",
+                    "Find the exact value of sin(75°) using angle addition formulas"
+                ]
+        
+        # Fractions and decimals
+        elif any(keyword in topic_lower for keyword in ["fraction", "decimal", "percentage"]):
+            if difficulty == "easy":
+                return [
+                    "Add the fractions: 1/4 + 1/4",
+                    "Convert 0.5 to a fraction",
+                    "Calculate 10% of 50",
+                    "Multiply: 2/3 × 3/4",
+                    "Convert 1/2 to a decimal"
+                ]
+            elif difficulty == "medium":
+                return [
+                    "Add the fractions: 3/4 + 2/3. Show your work.",
+                    "Multiply the fractions: 2/5 × 3/8",
+                    "Divide the fractions: 3/4 ÷ 2/3",
+                    "Convert 0.75 to a fraction in simplest form.",
+                    "Calculate 25% of 80"
+                ]
+            else:  # hard
+                return [
+                    "Simplify the complex fraction: (2/3) / (4/5)",
+                    "Solve: (x + 1/2) / (x - 1/3) = 2",
+                    "Find the value of x if 3/4 of x is 15",
+                    "Convert 0.333... (repeating) to a fraction",
+                    "Calculate compound interest: $1000 at 5% for 3 years"
+                ]
+        
+        # Default algebra questions
+        else:
+            if difficulty == "easy":
+                return [
+                    "Solve: x + 3 = 7",
+                    "Find the value of y if y = 2x + 1 and x = 4",
+                    "Simplify: 3x + 2x + 5",
+                    "Solve: 2x = 10",
+                    "What is 5x when x = 3?"
+                ]
+            elif difficulty == "medium":
+                return [
+                    "Solve the equation: 2x + 5 = 13. Show your work step by step.",
+                    "Factor the quadratic expression: x² + 6x + 8",
+                    "Find the value of y when x = 3 in the equation y = 2x² - 4x + 1",
+                    "Solve the system of equations: 2x + y = 7 and x - y = 1"
+                ]
+            else:  # hard
+                return [
+                    "Solve the complex quadratic equation: 2x² - 7x + 3 = 0 using the quadratic formula",
+                    "Find all real solutions to the equation: x³ - 6x² + 11x - 6 = 0",
+                    "Solve the system of three equations: x + y + z = 6, 2x + y - z = 1, x - y + 2z = 5",
+                    "Prove that the sum of two consecutive odd integers is divisible by 4"
+                ]
+    
+    def _generate_history_questions(self, topic: str, difficulty: str = "medium") -> List[str]:
+        """Generate specific history questions based on the topic and difficulty level"""
+        topic_lower = topic.lower()
+        
+        # Specific questions for 1857 Revolt with difficulty levels
+        if "1857" in topic_lower and "revolt" in topic_lower:
+            if difficulty == "easy":
+                return [
+                    "What was the 1857 Revolt? Describe the basic events that took place.",
+                    "Who were the sepoys and why were they important in the 1857 Revolt?",
+                    "Name three main leaders of the 1857 Revolt and their roles.",
+                    "What were the immediate causes that led to the 1857 Revolt?",
+                    "How did the British respond to the 1857 Revolt?",
+                    "What was the outcome of the 1857 Revolt for India?"
+                ]
+            elif difficulty == "medium":
+                return [
+                    "Analyze the immediate causes of the 1857 Revolt. What were the specific grievances of the sepoys and civilians?",
+                    "Examine the role of religious and cultural factors in the 1857 Revolt. How did the introduction of new cartridges and other reforms contribute to the uprising?",
+                    "Investigate the leadership and organization of the 1857 Revolt. Who were the key leaders and how did they coordinate the rebellion?",
+                    "Evaluate the impact of the 1857 Revolt on British colonial policy in India. What changes were implemented after the revolt was suppressed?",
+                    "Compare the 1857 Revolt with other anti-colonial movements in India. What were the similarities and differences in their approaches and outcomes?",
+                    "Research the role of women in the 1857 Revolt. How did figures like Rani Lakshmibai and Zeenat Mahal contribute to the rebellion?"
+                ]
+            else:  # hard
+                return [
+                    "Critically analyze the historiography of the 1857 Revolt. How have different historians interpreted the nature and significance of this event?",
+                    "Examine the complex interplay of economic, social, religious, and political factors that culminated in the 1857 Revolt. Which factors were most significant?",
+                    "Investigate the role of communication networks and information flow in the spread of the 1857 Revolt across different regions of India.",
+                    "Analyze the military strategy and tactics employed by both the rebels and the British during the 1857 Revolt. What were the key turning points?",
+                    "Evaluate the long-term consequences of the 1857 Revolt on Indian society, economy, and political consciousness. How did it shape the future independence movement?",
+                    "Compare and contrast the 1857 Revolt with other major anti-colonial uprisings globally. What makes it unique in the context of colonial resistance movements?",
+                    "Research the role of different social classes and communities in the 1857 Revolt. How did their participation reflect broader social tensions?",
+                    "Analyze the role of technology and modern warfare in the British suppression of the 1857 Revolt. How did technological advantages influence the outcome?"
+                ]
+        
+        # Specific questions for other historical topics
+        elif "independence" in topic_lower and "india" in topic_lower:
+            if difficulty == "easy":
+                return [
+                    "Who was Mahatma Gandhi and what was his role in India's independence?",
+                    "What was the Quit India Movement and when did it happen?",
+                    "Name three important leaders of India's independence movement.",
+                    "What was the role of the Indian National Congress in the freedom struggle?",
+                    "How did India finally gain independence from British rule?",
+                    "What was the partition of India and why did it happen?"
+                ]
+            elif difficulty == "medium":
+                return [
+                    "Analyze the role of Mahatma Gandhi in India's independence movement. How did his philosophy of non-violence influence the struggle?",
+                    "Examine the impact of World War II on India's independence movement. How did the war accelerate the demand for independence?",
+                    "Investigate the role of the Indian National Congress and Muslim League in the independence movement. How did their relationship evolve?",
+                    "Evaluate the significance of the Quit India Movement of 1942. What were its immediate and long-term consequences?",
+                    "Compare the approaches of different leaders in the independence movement. How did the methods of Gandhi, Subhas Chandra Bose, and others differ?",
+                    "Research the role of women in India's independence movement. How did they contribute to the struggle for freedom?"
+                ]
+            else:  # hard
+                return [
+                    "Critically analyze the historiography of India's independence movement. How have different schools of thought interpreted the role of various factors?",
+                    "Examine the complex interplay of international politics, economic factors, and social movements in India's path to independence.",
+                    "Investigate the role of revolutionary activities and armed resistance in complementing the non-violent independence movement.",
+                    "Analyze the impact of the independence movement on the development of democratic institutions and constitutional frameworks in India.",
+                    "Evaluate the long-term consequences of the partition of India on South Asian politics, society, and international relations.",
+                    "Compare India's independence movement with other anti-colonial struggles globally. What were the unique characteristics of the Indian experience?"
+                ]
+        
+        elif "freedom" in topic_lower and "struggle" in topic_lower:
+            if difficulty == "easy":
+                return [
+                    "What was India's freedom struggle? Describe the basic timeline.",
+                    "Who were the main leaders of India's freedom movement?",
+                    "What was the role of Mahatma Gandhi in the freedom struggle?",
+                    "What were the main methods used in India's freedom struggle?",
+                    "How did the freedom struggle end?",
+                    "What was the role of the Indian National Congress?"
+                ]
+            elif difficulty == "medium":
+                return [
+                    "Analyze the various phases of India's freedom struggle. How did the movement evolve from moderate to extremist approaches?",
+                    "Examine the role of revolutionary activities in India's freedom struggle. How did armed resistance complement non-violent methods?",
+                    "Investigate the impact of international events on India's freedom struggle. How did global developments influence the movement?",
+                    "Evaluate the role of the press and literature in India's freedom struggle. How did they contribute to spreading nationalist ideas?",
+                    "Compare the freedom struggles in different regions of India. How did local conditions and leaders shape the movement?",
+                    "Research the role of students and youth in India's freedom struggle. How did they contribute to the nationalist movement?"
+                ]
+            else:  # hard
+                return [
+                    "Critically analyze the historiography of India's freedom struggle. How have different interpretations evolved over time?",
+                    "Examine the complex interplay of social reform movements, economic nationalism, and political mobilization in India's freedom struggle.",
+                    "Investigate the role of international networks and diasporic communities in supporting India's freedom movement.",
+                    "Analyze the impact of the freedom struggle on the development of democratic institutions and constitutional frameworks.",
+                    "Evaluate the long-term consequences of the freedom struggle on India's foreign policy and international relations.",
+                    "Compare India's freedom struggle with other anti-colonial movements globally. What were the unique characteristics?"
+                ]
+        
+        elif "british" in topic_lower and "rule" in topic_lower:
+            if difficulty == "easy":
+                return [
+                    "What was British rule in India? Describe the basic timeline.",
+                    "Who were the main British officials who ruled India?",
+                    "What were the main policies of British rule in India?",
+                    "How did British rule affect Indian society?",
+                    "What were the main resistance movements against British rule?",
+                    "When and how did British rule end in India?"
+                ]
+            elif difficulty == "medium":
+                return [
+                    "Analyze the establishment of British rule in India. What were the key events and strategies that led to British dominance?",
+                    "Examine the economic impact of British rule on India. How did colonial policies affect India's economy and society?",
+                    "Investigate the social and cultural changes during British rule. How did colonialism transform Indian society?",
+                    "Evaluate the administrative system established by the British in India. How did it function and what were its effects?",
+                    "Compare the policies of different British governors-general. How did their approaches to ruling India differ?",
+                    "Research the resistance movements against British rule. How did Indians respond to colonial policies?"
+                ]
+            else:  # hard
+                return [
+                    "Critically analyze the historiography of British rule in India. How have different schools of thought interpreted colonial impact?",
+                    "Examine the complex interplay of economic exploitation, administrative modernization, and cultural transformation under British rule.",
+                    "Investigate the role of technology, infrastructure, and modern institutions in consolidating British power in India.",
+                    "Analyze the impact of British rule on India's integration into the global economy and international trade networks.",
+                    "Evaluate the long-term consequences of British rule on India's political institutions, legal systems, and governance structures.",
+                    "Compare British rule in India with other colonial experiences globally. What were the unique characteristics of the Indian case?"
+                ]
+        
+        # Generic but more specific history questions for other topics
+        else:
+            if difficulty == "easy":
+                return [
+                    f"What was {topic}? Describe the basic events and timeline.",
+                    f"Who were the main people involved in {topic}?",
+                    f"What were the main causes of {topic}?",
+                    f"What happened during {topic}?",
+                    f"What were the immediate results of {topic}?",
+                    f"Why is {topic} important in history?"
+                ]
+            elif difficulty == "medium":
+                return [
+                    f"Analyze the historical context and background of {topic}. What were the key factors that led to this event/period?",
+                    f"Examine the immediate causes and triggers of {topic}. What specific events or conditions precipitated this development?",
+                    f"Investigate the key figures and leaders involved in {topic}. What were their roles and motivations?",
+                    f"Evaluate the immediate consequences and outcomes of {topic}. How did it affect the people and society at the time?",
+                    f"Compare {topic} with similar historical events or movements. What were the similarities and differences?",
+                    f"Research the long-term impact of {topic} on subsequent historical developments. How did it influence later events?"
+                ]
+            else:  # hard
+                return [
+                    f"Critically analyze the historiography of {topic}. How have different historians interpreted this event/period?",
+                    f"Examine the complex interplay of multiple factors that contributed to {topic}. Which factors were most significant and why?",
+                    f"Investigate the role of international context and global developments in shaping {topic}. How did external factors influence this event?",
+                    f"Analyze the impact of {topic} on the development of institutions, ideologies, and social structures. What were the long-term consequences?",
+                    f"Evaluate the significance of {topic} in the broader context of world history and global developments. How does it compare to similar events?",
+                    f"Research the role of different social classes, communities, and interest groups in {topic}. How did their participation reflect broader social dynamics?"
+                ]
+    
+    def _generate_rubric(self, difficulty: str) -> List[Dict[str, str]]:
         """Generate grading rubric"""
         if difficulty == "easy":
-            return {
-                "Excellent": "All questions correct with clear explanations",
-                "Good": "Most questions correct with some explanations",
-                "Needs Improvement": "Several errors or missing explanations"
-            }
+            return [
+                {
+                    "criteria": "Understanding",
+                    "excellent": "Demonstrates clear understanding of concepts",
+                    "good": "Shows good understanding with minor gaps",
+                    "fair": "Basic understanding with some confusion",
+                    "poor": "Limited understanding of key concepts"
+                },
+                {
+                    "criteria": "Accuracy",
+                    "excellent": "All answers are correct",
+                    "good": "Most answers are correct with minor errors",
+                    "fair": "Some correct answers with several errors",
+                    "poor": "Many incorrect answers"
+                },
+                {
+                    "criteria": "Explanation",
+                    "excellent": "Clear and detailed explanations provided",
+                    "good": "Adequate explanations for most answers",
+                    "fair": "Basic explanations with some gaps",
+                    "poor": "Minimal or no explanations provided"
+                }
+            ]
         elif difficulty == "medium":
-            return {
-                "Excellent": "All questions correct with detailed explanations and examples",
-                "Good": "Most questions correct with adequate explanations",
-                "Satisfactory": "Some questions correct with basic explanations",
-                "Needs Improvement": "Many errors or insufficient explanations"
-            }
-        else:
-            return {
-                "Outstanding": "Exceptional work with innovative solutions and thorough explanations",
-                "Excellent": "All questions correct with comprehensive explanations",
-                "Good": "Most questions correct with detailed explanations",
-                "Satisfactory": "Some questions correct with adequate explanations",
-                "Needs Improvement": "Many errors or insufficient work"
-            }
+            return [
+                {
+                    "criteria": "Comprehension",
+                    "excellent": "Deep understanding with critical analysis",
+                    "good": "Solid understanding with good analysis",
+                    "satisfactory": "Basic understanding with limited analysis",
+                    "needs_improvement": "Superficial understanding"
+                },
+                {
+                    "criteria": "Application",
+                    "excellent": "Successfully applies concepts to new situations",
+                    "good": "Applies concepts correctly in familiar contexts",
+                    "satisfactory": "Limited application of concepts",
+                    "needs_improvement": "Struggles to apply concepts"
+                },
+                {
+                    "criteria": "Critical Thinking",
+                    "excellent": "Demonstrates advanced critical thinking skills",
+                    "good": "Shows good critical thinking abilities",
+                    "satisfactory": "Basic critical thinking demonstrated",
+                    "needs_improvement": "Limited critical thinking skills"
+                }
+            ]
+        else:  # hard
+            return [
+                {
+                    "criteria": "Mastery",
+                    "outstanding": "Exceptional mastery of complex concepts",
+                    "excellent": "Advanced understanding and application",
+                    "good": "Solid grasp of challenging material",
+                    "satisfactory": "Adequate understanding of key concepts",
+                    "needs_improvement": "Struggles with complex material"
+                },
+                {
+                    "criteria": "Innovation",
+                    "outstanding": "Creative and innovative solutions",
+                    "excellent": "Original thinking and approaches",
+                    "good": "Effective problem-solving strategies",
+                    "satisfactory": "Standard approaches to problems",
+                    "needs_improvement": "Limited problem-solving ability"
+                },
+                {
+                    "criteria": "Analysis",
+                    "outstanding": "Sophisticated analysis and synthesis",
+                    "excellent": "Thorough analysis with deep insights",
+                    "good": "Good analytical skills demonstrated",
+                    "satisfactory": "Basic analysis provided",
+                    "needs_improvement": "Minimal analysis or synthesis"
+                }
+            ]
     
     def _estimate_completion_time(self, grade: str, difficulty: str, num_questions: int) -> str:
         """Estimate completion time"""
@@ -1017,6 +1427,189 @@ class FreeAIContentGenerator:
         ]
         
         return random.sample(objectives, 3)
+    
+    def _generate_board_specific_questions(self, board: str, subject: str, topic: str, difficulty: str, grade: str) -> List[Dict[str, Any]]:
+        """Generate board-specific questions based on syllabus"""
+        
+        # Extract grade number from grade string (e.g., "12th Grade" -> 12)
+        grade_num = int(''.join(filter(str.isdigit, grade)))
+        
+        # Board-specific question templates
+        board_questions = {
+            "CBSE": {
+                "Mathematics": {
+                    "12th Grade": {
+                        "3D Plane Equation": {
+                            "easy": [
+                                "Find the equation of a plane passing through the point (1, 2, 3) and perpendicular to the vector (2, -1, 4).",
+                                "Determine the distance of the point (3, 4, 5) from the plane 2x - y + 3z = 6.",
+                                "Find the angle between the planes x + y + z = 1 and 2x - y + z = 3."
+                            ],
+                            "medium": [
+                                "Find the equation of a plane passing through three points A(1, 2, 3), B(4, 5, 6), and C(7, 8, 9). Show all steps.",
+                                "Determine the intersection of the planes 2x + y - z = 4 and x - 2y + 3z = 1. Express the result in parametric form.",
+                                "Find the equation of a plane that is parallel to the plane 3x + 2y - z = 7 and passes through the point (2, -1, 4)."
+                            ],
+                            "hard": [
+                                "Prove that the planes 2x + y - z = 3, x - 2y + z = 1, and 3x + 4y - 3z = 5 form a triangular prism. Find its volume.",
+                                "Find the equation of a plane that makes equal angles with the coordinate axes and passes through the point (1, 1, 1).",
+                                "Determine the locus of points equidistant from the planes x + y + z = 1 and 2x + 2y + 2z = 3."
+                            ]
+                        },
+                        "Vector Algebra": {
+                            "easy": [
+                                "Find the magnitude and direction of the vector (3, 4, 5).",
+                                "Calculate the dot product of vectors (2, -1, 3) and (1, 2, -2).",
+                                "Find the cross product of vectors (1, 0, 0) and (0, 1, 0)."
+                            ],
+                            "medium": [
+                                "Prove that the vectors (1, 2, 3), (2, 3, 4), and (3, 4, 5) are coplanar.",
+                                "Find the angle between the vectors (2, 1, -1) and (1, -2, 3).",
+                                "Show that the vectors (a, b, c), (b, c, a), and (c, a, b) are coplanar if a + b + c = 0."
+                            ],
+                            "hard": [
+                                "Prove that the volume of a tetrahedron formed by four points is one-sixth of the absolute value of the scalar triple product.",
+                                "Find the shortest distance between the skew lines r = (1, 2, 3) + t(1, 1, 1) and r = (4, 5, 6) + s(2, 1, -1).",
+                                "Prove that the vectors a, b, c are linearly independent if and only if their scalar triple product is non-zero."
+                            ]
+                        }
+                    }
+                }
+            },
+            "ICSE": {
+                "Mathematics": {
+                    "12th Grade": {
+                        "3D Plane Equation": {
+                            "easy": [
+                                "Find the equation of a plane in normal form passing through the point (2, 3, 4) with normal vector (1, 2, 3).",
+                                "Calculate the perpendicular distance from the origin to the plane 3x + 4y + 5z = 12.",
+                                "Find the equation of a plane parallel to the xy-plane and passing through the point (1, 2, 3)."
+                            ],
+                            "medium": [
+                                "Find the equation of a plane passing through the line of intersection of planes x + y + z = 1 and 2x + 3y + 4z = 5, and parallel to the x-axis.",
+                                "Determine the angle between the planes 2x + y - z = 3 and x + 2y + z = 4.",
+                                "Find the equation of a plane that bisects the angle between the planes x + y + z = 1 and x - y + z = 1."
+                            ],
+                            "hard": [
+                                "Prove that the planes x + y + z = 1, 2x + 2y + 2z = 2, and 3x + 3y + 3z = 3 are coincident.",
+                                "Find the equation of a plane that contains the line (x-1)/2 = (y-2)/3 = (z-3)/4 and is perpendicular to the plane x + y + z = 1.",
+                                "Determine the conditions under which the planes ax + by + cz = d, a'x + b'y + c'z = d', and a''x + b''y + c''z = d'' form a triangular prism."
+                            ]
+                        }
+                    }
+                }
+            }
+        }
+        
+        # Get board-specific questions for the given parameters
+        board_data = board_questions.get(board, {})
+        subject_data = board_data.get(subject, {})
+        grade_data = subject_data.get(f"{grade_num}th Grade", {})
+        topic_data = grade_data.get(topic, {})
+        
+        # If board-specific questions exist, use them
+        if topic_data and difficulty in topic_data:
+            questions = topic_data[difficulty]
+        else:
+            # Fallback to generic questions with board context
+            questions = self._generate_generic_board_questions(board, subject, topic, difficulty, grade)
+        
+        # Convert to objects with question and points
+        question_objects = []
+        for i, question in enumerate(questions):
+            points = 10 if difficulty == "easy" else 15 if difficulty == "medium" else 20
+            question_objects.append({
+                "question": question,
+                "points": points
+            })
+        
+        return question_objects
+    
+    def _generate_generic_board_questions(self, board: str, subject: str, topic: str, difficulty: str, grade: str) -> List[str]:
+        """Generate generic questions with board-specific context"""
+        
+        # Base questions with board-specific modifications
+        base_questions = {
+            "Mathematics": {
+                "easy": [
+                    f"Solve the following {topic} problem according to {board} syllabus: Find the value of x in the equation 2x + 5 = 13.",
+                    f"Apply {board} curriculum standards to solve: Calculate the area of a rectangle with length 8 cm and width 5 cm.",
+                    f"Using {board} guidelines, solve: Find the perimeter of a triangle with sides 6 cm, 8 cm, and 10 cm."
+                ],
+                "medium": [
+                    f"Following {board} examination pattern, solve: Factor the quadratic expression x² + 6x + 8. Show all steps.",
+                    f"According to {board} standards, solve: Find the value of y when x = 3 in the equation y = 2x² - 4x + 1.",
+                    f"Using {board} methodology, solve: Solve the system of equations: 2x + y = 7 and x - y = 1."
+                ],
+                "hard": [
+                    f"Advanced {board} level problem: Solve the complex quadratic equation 2x² - 7x + 3 = 0 using the quadratic formula.",
+                    f"Higher-order {board} question: Find all real solutions to the equation x³ - 6x² + 11x - 6 = 0.",
+                    f"Expert {board} level: Solve the system of three equations: x + y + z = 6, 2x + y - z = 1, x - y + 2z = 5."
+                ]
+            },
+            "Science": {
+                "easy": [
+                    f"Explain the {topic} process according to {board} curriculum standards.",
+                    f"Describe how {topic} relates to everyday life, following {board} guidelines.",
+                    f"Identify the main components of {topic} as per {board} syllabus."
+                ],
+                "medium": [
+                    f"Analyze the factors that affect {topic} using {board} examination criteria.",
+                    f"Design an experiment to test {topic} concepts following {board} laboratory guidelines.",
+                    f"Compare and contrast different aspects of {topic} according to {board} standards."
+                ],
+                "hard": [
+                    f"Critically evaluate the implications of {topic} in modern science, using {board} advanced criteria.",
+                    f"Propose a research methodology for studying {topic} following {board} research standards.",
+                    f"Analyze the ethical considerations in {topic} research according to {board} guidelines."
+                ]
+            }
+        }
+        
+        subject_questions = base_questions.get(subject, base_questions["Mathematics"])
+        return subject_questions.get(difficulty, subject_questions["medium"])
+    
+    def _generate_board_learning_objectives(self, board: str, subject: str, topic: str) -> List[str]:
+        """Generate board-specific learning objectives"""
+        
+        board_objectives = {
+            "CBSE": {
+                "Mathematics": {
+                    "3D Plane Equation": [
+                        "Understand the concept of planes in 3D space",
+                        "Learn to find equations of planes in different forms",
+                        "Apply vector concepts to solve plane geometry problems",
+                        "Develop analytical skills for 3D coordinate geometry"
+                    ]
+                }
+            },
+            "ICSE": {
+                "Mathematics": {
+                    "3D Plane Equation": [
+                        "Master the fundamentals of 3D coordinate geometry",
+                        "Apply vector algebra to plane equations",
+                        "Solve complex problems involving multiple planes",
+                        "Develop mathematical reasoning and proof skills"
+                    ]
+                }
+            }
+        }
+        
+        # Get board-specific objectives
+        board_data = board_objectives.get(board, {})
+        subject_data = board_data.get(subject, {})
+        topic_objectives = subject_data.get(topic, [])
+        
+        if topic_objectives:
+            return topic_objectives
+        else:
+            # Fallback to generic objectives
+            return [
+                f"Understand the fundamental concepts of {topic}",
+                f"Apply {topic} principles to solve problems",
+                f"Develop analytical thinking skills",
+                f"Master {board} curriculum standards for {subject}"
+            ]
 
 # Initialize free AI generator
 free_ai_generator = FreeAIContentGenerator() 

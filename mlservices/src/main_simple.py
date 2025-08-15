@@ -168,54 +168,28 @@ async def get_teacher_insights(teacher_id: int):
         
         engagement_prediction = enhanced_ai_services.predict_engagement_with_feedback(engagement_data)
         
+        # Format data to match frontend expectations
+        formatted_data = {
+            "performance_trend": "improving",
+            "attendance_rate": random.randint(85, 95),
+            "engagement_score": round(engagement_prediction['predicted_engagement'], 1)
+        }
+        
         return {
-            "teacher_id": teacher_id,
-            "insights": {
-                "engagement_score": engagement_prediction['predicted_engagement'],
-                "recommendations": [
-                    "Consider using more interactive activities",
-                    "Student feedback shows positive engagement",
-                    "Attendance has improved by 15%",
-                    "Try incorporating more group discussions"
-                ],
-                "performance_metrics": {
-                    "class_participation": random.randint(70, 90),
-                    "assignment_completion": random.randint(85, 98),
-                    "student_satisfaction": random.randint(80, 95)
-                },
-                "attendance_trends": {
-                    "current_month": random.randint(85, 95),
-                    "previous_month": random.randint(75, 90),
-                    "improvement": random.randint(5, 20)
-                },
-                "ai_confidence": engagement_prediction['confidence'],
-                "model_version": engagement_prediction['model_version'],
-                "last_updated": engagement_prediction['last_updated']
-            }
+            "success": True,
+            "data": formatted_data
         }
     else:
         # Fallback to basic response
+        formatted_data = {
+            "performance_trend": "improving",
+            "attendance_rate": random.randint(85, 95),
+            "engagement_score": random.randint(7, 9)
+        }
+        
         return {
-            "teacher_id": teacher_id,
-            "insights": {
-                "engagement_score": random.randint(75, 95),
-                "recommendations": [
-                    "Consider using more interactive activities",
-                    "Student feedback shows positive engagement",
-                    "Attendance has improved by 15%",
-                    "Try incorporating more group discussions"
-                ],
-                "performance_metrics": {
-                    "class_participation": random.randint(70, 90),
-                    "assignment_completion": random.randint(85, 98),
-                    "student_satisfaction": random.randint(80, 95)
-                },
-                "attendance_trends": {
-                    "current_month": random.randint(85, 95),
-                    "previous_month": random.randint(75, 90),
-                    "improvement": random.randint(5, 20)
-                }
-            }
+            "success": True,
+            "data": formatted_data
         }
 
 @app.post("/ml/teacher/attendance/analyze")

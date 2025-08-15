@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException        
+from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from typing import Dict, Any, Optional, List
 from datetime import datetime
@@ -30,7 +30,6 @@ class LessonPlanRequest(BaseModel):
     learning_objectives: List[str]
 
 class AssignmentRequest(BaseModel):
-    board: str
     subject: str
     grade: str
     topic: str
@@ -118,19 +117,15 @@ async def generate_student_report(request: StudentReportRequest):
         raise HTTPException(status_code=503, detail="Free AI generator not available")
     
     try:
-        # Create the student_data dictionary that the method expects
-        student_data = {
-            'name': request.name,
-            'subject': request.subject,
-            'grade': request.grade,
-            'attendance_rate': request.attendance_rate,
-            'strengths': request.strengths,
-            'weaknesses': request.weaknesses,
-            'goals': request.goals,
-            'language': 'en'  # Default to English
-        }
-        
-        result = free_ai_generator.generate_student_report(student_data)
+        result = free_ai_generator.generate_student_report(
+            request.name,
+            request.subject,
+            request.grade,
+            request.attendance_rate,
+            request.strengths,
+            request.weaknesses,
+            request.goals
+        )
         
         return {
             "success": True,
@@ -140,7 +135,6 @@ async def generate_student_report(request: StudentReportRequest):
             "generated_at": datetime.now().isoformat()
         }
     except Exception as e:
-        print(f"Error in generate_student_report: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Error generating report: {str(e)}")
 
 @router.post("/bulk/generate-reports")
@@ -209,7 +203,6 @@ async def generate_assignment(request: AssignmentRequest):
     
     try:
         result = free_ai_generator.generate_assignment(
-            request.board,
             request.subject,
             request.grade,
             request.topic,
@@ -221,7 +214,6 @@ async def generate_assignment(request: AssignmentRequest):
         
         # Add additional metadata
         assignment_data.update({
-            "board": result.get("board"),
             "subject": result.get("subject"),
             "grade": result.get("grade"),
             "topic": result.get("topic"),

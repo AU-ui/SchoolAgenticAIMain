@@ -462,6 +462,51 @@ router.post('/:userId/reactivate', authenticateToken, requireAdminAccess, async 
   }
 });
 
+// GET /api/users/profile - Get user profile
+router.get('/profile', authenticateToken, async (req, res) => {
+  try {
+    const { id: userId } = req.user;
+    
+    const result = await query(`
+      SELECT id, first_name, last_name, email, phone, address, bio, role, tenant_id, created_at, updated_at
+      FROM users 
+      WHERE id = $1
+    `, [userId]);
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found'
+      });
+    }
+
+    const user = result.rows[0];
+    res.json({
+      success: true,
+      user: {
+        id: user.id,
+        firstName: user.first_name,
+        lastName: user.last_name,
+        email: user.email,
+        phone: user.phone,
+        address: user.address,
+        bio: user.bio,
+        role: user.role,
+        tenantId: user.tenant_id,
+        createdAt: user.created_at,
+        updatedAt: user.updated_at
+      }
+    });
+
+  } catch (error) {
+    console.error('Profile fetch error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Internal server error'
+    });
+  }
+});
+
 // PUT /api/users/profile - Update user profile
 router.put('/profile', authenticateToken, async (req, res) => {
   try {
@@ -524,6 +569,51 @@ router.put('/profile', authenticateToken, async (req, res) => {
 
   } catch (error) {
     console.error('Profile update error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Internal server error'
+    });
+  }
+});
+
+// POST /api/users/profile-picture - Upload profile picture
+router.post('/profile-picture', authenticateToken, async (req, res) => {
+  try {
+    const { id: userId } = req.user;
+    const { profilePictureUrl } = req.body;
+
+    if (!profilePictureUrl) {
+      return res.status(400).json({
+        success: false,
+        message: 'Profile picture URL is required'
+      });
+    }
+
+    // Update user profile picture
+    const updateQuery = `
+      UPDATE users 
+      SET profile_picture_url = $1, updated_at = NOW()
+      WHERE id = $2
+      RETURNING id, profile_picture_url
+    `;
+
+    const result = await query(updateQuery, [profilePictureUrl, userId]);
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found'
+      });
+    }
+
+    res.json({
+      success: true,
+      message: 'Profile picture updated successfully',
+      profilePictureUrl: result.rows[0].profile_picture_url
+    });
+
+  } catch (error) {
+    console.error('Profile picture update error:', error);
     res.status(500).json({
       success: false,
       message: 'Internal server error'

@@ -641,6 +641,99 @@ router.delete('/resources/bookings/:bookingId', authenticateToken, requireRole([
   }
 });
 
+// Assignment Management APIs
+router.get('/assignments', authenticateToken, requireRole(['teacher']), async (req, res) => {
+  try {
+    const { id: teacherId } = req.user;
+    const { classId } = req.query;
+    
+    let assignmentsQuery = `
+      SELECT 
+        a.*,
+        c.name as class_name,
+        c.grade_level
+      FROM assignments a
+      JOIN classes c ON a.class_id = c.id
+      WHERE a.teacher_id = $1
+    `;
+    
+    const queryParams = [teacherId];
+    
+    if (classId) {
+      assignmentsQuery += ` AND a.class_id = $2`;
+      queryParams.push(classId);
+    }
+    
+    assignmentsQuery += ` ORDER BY a.created_at DESC`;
+    
+    const assignmentsResult = await query(assignmentsQuery, queryParams);
+    
+    res.json({
+      success: true,
+      data: {
+        assignments: assignmentsResult.rows
+      }
+    });
+  } catch (error) {
+    console.error('Assignments fetch error:', error);
+    res.status(500).json({ success: false, message: 'Internal server error' });
+  }
+});
+
+router.post('/assignments', authenticateToken, requireRole(['teacher']), async (req, res) => {
+  try {
+    const { id: teacherId } = req.user;
+    const { classId, title, description, dueDate, totalPoints, weight, assignmentType } = req.body;
+    
+    // Validate required fields
+    if (!classId || !title) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'Class ID and title are required' 
+      });
+    }
+    
+    // Verify teacher has access to this class
+    const classAccessQuery = `
+      SELECT id FROM classes 
+      WHERE id = $1 AND teacher_id = $2
+    `;
+    
+    const classAccessResult = await query(classAccessQuery, [classId, teacherId]);
+    
+    if (classAccessResult.rows.length === 0) {
+      return res.status(403).json({ 
+        success: false, 
+        message: 'Access denied to this class' 
+      });
+    }
+    
+    // Create assignment
+    const createAssignmentQuery = `
+      INSERT INTO assignments (
+        class_id, teacher_id, title, description, due_date, 
+        total_points, weight, assignment_type, created_at, updated_at
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW(), NOW())
+      RETURNING *
+    `;
+    
+    const assignmentResult = await query(createAssignmentQuery, [
+      classId, teacherId, title, description, dueDate, 
+      totalPoints || 100, weight || 1.0, assignmentType || 'assignment'
+    ]);
+    
+    res.json({
+      success: true,
+      data: {
+        assignment: assignmentResult.rows[0]
+      }
+    });
+  } catch (error) {
+    console.error('Assignment creation error:', error);
+    res.status(500).json({ success: false, message: 'Internal server error' });
+  }
+});
+
 // Grade Management APIs
 router.get('/assignments/:assignmentId/grades', authenticateToken, requireRole(['teacher']), async (req, res) => {
   try {

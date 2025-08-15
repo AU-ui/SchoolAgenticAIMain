@@ -208,6 +208,59 @@ async function testTenantEndpoints() {
   }
 }
 
+async function testTeacherAssignmentEndpoints() {
+  console.log('\n📚 Testing Teacher Assignment Endpoints...');
+  
+  if (!authToken) {
+    console.log('   ⚠️  Skipping teacher assignment tests - no auth token');
+    return;
+  }
+
+  // Test get assignments
+  console.log('\n   📋 Testing GET /teacher/assignments...');
+  const assignmentsResponse = await makeRequest('GET', '/teacher/assignments', null, authToken);
+  if (assignmentsResponse.success) {
+    console.log('   ✅ Get assignments successful');
+    console.log(`   📚 Found ${assignmentsResponse.data.data.assignments.length} assignments`);
+  } else {
+    console.log('   ❌ Get assignments failed');
+    console.log(`   Error: ${assignmentsResponse.error}`);
+  }
+
+  // Test create new assignment
+  console.log('\n   ➕ Testing POST /teacher/assignments...');
+  const newAssignmentData = {
+    classId: 1,
+    title: 'Test Assignment - Mathematics',
+    description: 'This is a test assignment for mathematics class',
+    dueDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(), // 7 days from now
+    totalPoints: 100,
+    weight: 1.0,
+    assignmentType: 'homework'
+  };
+  const createAssignmentResponse = await makeRequest('POST', '/teacher/assignments', newAssignmentData, authToken);
+  if (createAssignmentResponse.success) {
+    console.log('   ✅ Create assignment successful');
+    console.log(`   📚 Created: ${createAssignmentResponse.data.data.assignment.title}`);
+    console.log(`   📅 Due: ${createAssignmentResponse.data.data.assignment.due_date}`);
+    
+    // Test get assignment grades
+    const assignmentId = createAssignmentResponse.data.data.assignment.id;
+    console.log(`\n   📊 Testing GET /teacher/assignments/${assignmentId}/grades...`);
+    const gradesResponse = await makeRequest('GET', `/teacher/assignments/${assignmentId}/grades`, null, authToken);
+    if (gradesResponse.success) {
+      console.log('   ✅ Get assignment grades successful');
+      console.log(`   📊 Found ${gradesResponse.data.data.grades.length} grades`);
+    } else {
+      console.log('   ❌ Get assignment grades failed');
+      console.log(`   Error: ${gradesResponse.error}`);
+    }
+  } else {
+    console.log('   ❌ Create assignment failed');
+    console.log(`   Error: ${createAssignmentResponse.error}`);
+  }
+}
+
 // Main test runner
 async function runAllTests() {
   console.log('🚀 Starting API Endpoint Tests...');
@@ -218,6 +271,7 @@ async function runAllTests() {
     await testLandingEndpoints();
     await testAuthEndpoints();
     await testTenantEndpoints();
+    await testTeacherAssignmentEndpoints();
     
     console.log('\n🎉 All tests completed!');
     console.log('\n📋 Summary:');
@@ -225,6 +279,7 @@ async function runAllTests() {
     console.log('✅ Landing page endpoints (schools, stats, contact)');
     console.log('✅ Authentication endpoints (signup, login, me)');
     console.log('✅ Tenant management endpoints');
+    console.log('✅ Teacher assignment endpoints');
     
   } catch (error) {
     console.error('\n❌ Test suite failed:', error.message);

@@ -100,6 +100,18 @@ CREATE TABLE IF NOT EXISTS student_grades (
     updated_at TIMESTAMP DEFAULT NOW()
 );
 
+CREATE TABLE IF NOT EXISTS assignment_submissions (
+    id SERIAL PRIMARY KEY,
+    assignment_id INTEGER REFERENCES assignments(id) ON DELETE CASCADE,
+    student_id INTEGER REFERENCES students(id) ON DELETE CASCADE,
+    submission_text TEXT,
+    file_url VARCHAR(500),
+    submitted_at TIMESTAMP DEFAULT NOW(),
+    created_at TIMESTAMP DEFAULT NOW(),
+    updated_at TIMESTAMP DEFAULT NOW(),
+    UNIQUE(assignment_id, student_id)
+);
+
 -- Substitute Teacher Management
 CREATE TABLE IF NOT EXISTS substitute_requests (
     id SERIAL PRIMARY KEY,
@@ -163,5 +175,7 @@ CREATE INDEX idx_classroom_resources_school ON classroom_resources(school_id);
 CREATE INDEX idx_resource_bookings_teacher_date ON resource_bookings(teacher_id, booking_date);
 CREATE INDEX idx_assignments_class ON assignments(class_id);
 CREATE INDEX idx_student_grades_student ON student_grades(student_id);
+CREATE INDEX idx_assignment_submissions_assignment ON assignment_submissions(assignment_id);
+CREATE INDEX idx_assignment_submissions_student ON assignment_submissions(student_id);
 CREATE INDEX idx_substitute_requests_status ON substitute_requests(status);
 CREATE INDEX idx_class_schedules_class_day ON class_schedules(class_id, day_of_week); 
