@@ -647,6 +647,230 @@ router.get('/school-codes/validate/:code', async (req, res) => {
   }
 });
 
+// GET /api/admin/schools - Get schools for admin (FIXED: Allow administrator role)
+router.get('/schools', authenticateToken, requireRole(['admin', 'superadmin', 'administrator']), async (req, res) => {
+  try {
+    const { tenantId } = req.user;
+    
+    const schoolsQuery = `
+      SELECT 
+        s.id,
+        s.name,
+        s.address,
+        s.phone,
+        s.email,
+        s.is_active,
+        (SELECT COUNT(*) FROM students WHERE school_id = s.id AND is_active = true) as student_count,
+        (SELECT COUNT(*) FROM teachers WHERE school_id = s.id AND is_active = true) as teacher_count
+      FROM schools s
+      WHERE s.tenant_id = $1 AND s.is_active = true
+      ORDER BY s.name
+    `;
+    
+    const result = await query(schoolsQuery, [tenantId]);
+    
+    const schools = result.rows.map(school => ({
+      id: school.id,
+      name: school.name,
+      address: school.address || 'Not specified',
+      phone: school.phone || 'Not specified',
+      email: school.email || 'Not specified',
+      studentCount: parseInt(school.student_count) || 0,
+      teacherCount: parseInt(school.teacher_count) || 0,
+      isActive: school.is_active
+    }));
+    
+    res.json(schools);
+  } catch (error) {
+    console.error('Error fetching schools:', error);
+    res.status(500).json({ 
+      success: false, 
+      message: 'Failed to fetch schools' 
+    });
+  }
+});
+
+// GET /api/admin/schools/:schoolId/classes - Get classes for a school (FIXED: Allow administrator role)
+router.get('/schools/:schoolId/classes', authenticateToken, requireRole(['admin', 'superadmin', 'administrator']), async (req, res) => {
+  try {
+    const { schoolId } = req.params;
+    const { tenantId } = req.user;
+    
+    // Verify the school belongs to the admin's tenant
+    const schoolCheckQuery = `
+      SELECT id FROM schools 
+      WHERE id = $1 AND tenant_id = $2 AND is_active = true
+    `;
+    
+    const schoolCheck = await query(schoolCheckQuery, [schoolId, tenantId]);
+    if (schoolCheck.rows.length === 0) {
+      return res.status(404).json({ 
+        success: false, 
+        message: 'School not found' 
+      });
+    }
+    
+    const classesQuery = `
+      SELECT 
+        c.id,
+        c.name,
+        c.grade_level,
+        c.academic_year,
+        c.is_active,
+        (SELECT COUNT(*) FROM students WHERE class_id = c.id AND is_active = true) as student_count,
+        u.first_name || ' ' || u.last_name as teacher_name
+      FROM classes c
+      LEFT JOIN users u ON c.teacher_id = u.id
+      WHERE c.school_id = $1 AND c.is_active = true
+      ORDER BY c.grade_level, c.name
+    `;
+    
+    const result = await query(classesQuery, [schoolId]);
+    
+    const classes = result.rows.map(cls => ({
+      id: cls.id,
+      name: cls.name,
+      gradeLevel: cls.grade_level,
+      academicYear: cls.academic_year,
+      studentCount: parseInt(cls.student_count) || 0,
+      teacherName: cls.teacher_name || 'Not assigned',
+      isActive: cls.is_active
+    }));
+    
+    res.json(classes);
+  } catch (error) {
+    console.error('Error fetching classes:', error);
+    res.status(500).json({ 
+      success: false, 
+      message: 'Failed to fetch classes' 
+    });
+  }
+});
+
+// GET /api/admin/attendance/school - Get attendance data for school/class (FIXED: Handle UUID vs integer mismatch)
+router.get('/attendance/school', authenticateToken, requireRole(['admin', 'superadmin', 'administrator']), async (req, res) => {
+  try {
+    const { school_id, class_id, month, year } = req.query;
+    const { tenantId } = req.user;
+    
+    if (!school_id || !class_id || !month || !year) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'Missing required parameters: school_id, class_id, month, year' 
+      });
+    }
+    
+    // Verify the school belongs to the admin's tenant
+    const schoolCheckQuery = `
+      SELECT id FROM schools 
+      WHERE id = $1 AND tenant_id = $2 AND is_active = true
+    `;
+    
+    const schoolCheck = await query(schoolCheckQuery, [school_id, tenantId]);
+    if (schoolCheck.rows.length === 0) {
+      return res.status(404).json({ 
+        success: false, 
+        message: 'School not found' 
+      });
+    }
+    
+    // Get attendance data for the specified month and year (FIXED: Handle UUID vs integer mismatch)
+    const attendanceQuery = `
+      SELECT 
+        ar.student_id,
+        ar.status,
+        ar.date,
+        ar.session_id,
+        s.first_name || ' ' || s.last_name as student_name,
+        u.first_name || ' ' || u.last_name as teacher_name
+      FROM attendance_records ar
+      JOIN students st ON ar.student_id::text = st.id::text
+      JOIN users s ON st.user_id = s.id
+      JOIN classes c ON st.class_id = c.id
+      LEFT JOIN users u ON c.teacher_id = u.id
+      WHERE st.class_id = $1 
+        AND EXTRACT(MONTH FROM ar.date) = $2 
+        AND EXTRACT(YEAR FROM ar.date) = $3
+      ORDER BY ar.date, s.first_name, s.last_name
+    `;
+    
+    const result = await query(attendanceQuery, [class_id, month, year]);
+    
+    // Process attendance data to match frontend expectations
+    const studentsMap = new Map();
+    
+    result.rows.forEach(record => {
+      if (!studentsMap.has(record.student_id)) {
+        studentsMap.set(record.student_id, {
+          id: record.student_id,
+          name: record.student_name,
+          presentDays: 0,
+          absentDays: 0,
+          lateDays: 0,
+          excusedDays: 0,
+          totalDays: 0
+        });
+      }
+      
+      const student = studentsMap.get(record.student_id);
+      student.totalDays++;
+      
+      switch (record.status) {
+        case 'present':
+          student.presentDays++;
+          break;
+        case 'absent':
+          student.absentDays++;
+          break;
+        case 'late':
+          student.lateDays++;
+          break;
+        case 'excused':
+          student.excusedDays++;
+          break;
+      }
+    });
+    
+    // Calculate attendance rates and status
+    const students = Array.from(studentsMap.values()).map(student => {
+      const attendanceRate = Math.round((student.presentDays / student.totalDays) * 100);
+      let status = 'Good';
+      if (attendanceRate < 70) status = 'Critical';
+      else if (attendanceRate < 85) status = 'Warning';
+      
+      return {
+        ...student,
+        attendanceRate,
+        status
+      };
+    });
+    
+    const attendanceData = {
+      schoolId: school_id,
+      classId: class_id,
+      month: parseInt(month),
+      year: parseInt(year),
+      students,
+      summary: {
+        totalStudents: students.length,
+        totalRecords: result.rows.length,
+        present: result.rows.filter(r => r.status === 'present').length,
+        absent: result.rows.filter(r => r.status === 'absent').length,
+        late: result.rows.filter(r => r.status === 'late').length,
+        excused: result.rows.filter(r => r.status === 'excused').length
+      }
+    };
+    
+    res.json(attendanceData);
+  } catch (error) {
+    console.error('Error fetching attendance data:', error);
+    res.status(500).json({ 
+      success: false, 
+      message: 'Failed to fetch attendance data' 
+    });
+  }
+});
+
 // Helper function to generate school code
 function generateSchoolCode() {
   const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';

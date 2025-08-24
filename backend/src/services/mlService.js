@@ -103,6 +103,45 @@ class MLService {
     async healthCheck() {
         return await this.makeRequest('/health', null, 'GET');
     }
+
+    // Simple ML service with mock data for now
+    async getAttendanceInsights(classId) {
+      // Mock AI insights
+      return {
+        total_students: 25,
+        attendance_rate: 0.92,
+        risk_students: 3,
+        trends: {
+          improving: 15,
+          declining: 2,
+          stable: 8
+        },
+        recommendations: [
+          "Student John Doe shows declining attendance pattern",
+          "Consider intervention for students with <80% attendance",
+          "Class attendance is above school average"
+        ]
+      };
+    }
+
+    async getAttendancePredictions(params) {
+      // Mock predictions
+      return params.students.map(studentId => ({
+        student_id: studentId,
+        attendance_probability: 0.85 + Math.random() * 0.1,
+        risk_level: Math.random() > 0.8 ? 'high' : 'low',
+        trend: Math.random() > 0.5 ? 'improving' : 'stable'
+      }));
+    }
+
+    async checkAttendanceAnomalies(params) {
+      // Mock anomaly check
+      return {
+        has_anomalies: false,
+        anomalies: [],
+        confidence: 0.95
+      };
+    }
 }
 
 module.exports = new MLService(); 

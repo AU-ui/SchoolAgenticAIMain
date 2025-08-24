@@ -1,0 +1,42 @@
+{
+  "timestamp": "2025-08-22T20:07:59.198Z",
+  "summary": {
+    "total": 5,
+    "passed": 0,
+    "failed": 5,
+    "successRate": 0
+  },
+  "results": [
+    {
+      "test": "Attendance API",
+      "success": false,
+      "details": "No authentication token available",
+      "timestamp": "2025-08-22T20:07:58.899Z"
+    },
+    {
+      "test": "Complete Workflow",
+      "success": false,
+      "details": "No authentication token available",
+      "timestamp": "2025-08-22T20:07:58.902Z"
+    },
+    {
+      "test": "ML Service",
+      "success": false,
+      "details": "",
+      "timestamp": "2025-08-22T20:07:58.920Z"
+    },
+    {
+      "test": "AI Predictions",
+      "success": false,
+      "details": "",
+      "timestamp": "2025-08-22T20:07:58.921Z"
+    },
+    {
+      "test": "Authentication",
+      "success": false,
+      "details": "Request failed with status code 500",
+      "timestamp": "2025-08-22T20:07:59.192Z"
+    }
+  ],
+  "systemStatus": "NEEDS_ATTENTION"
+}

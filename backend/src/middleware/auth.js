@@ -1,5 +1,5 @@
 const jwt = require('jsonwebtoken');
-const { query } = require('../config/database');
+const simpleAuthService = require('../../services/simpleAuthService');
 
 // Enhanced password validation for admin/superadmin
 const validateAdminPassword = (password) => {
@@ -45,55 +45,55 @@ const isBusinessHours = () => {
 
 // Middleware to verify JWT token
 const authenticateToken = async (req, res, next) => {
-  const authHeader = req.headers['authorization'];
-  const token = authHeader && authHeader.split(' ')[1]; // Bearer TOKEN
-
-  if (!token) {
-    return res.status(401).json({ 
-      success: false, 
-      message: 'Access token required' 
-    });
-  }
-
   try {
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const authHeader = req.headers['authorization'];
+    console.log('Auth header:', authHeader); // Debug log
     
-    // Get user from database to ensure they still exist and are active
-    const userResult = await query(
-      'SELECT id, email, role, tenant_id, is_active FROM users WHERE id = $1',
-      [decoded.userId]
-    );
+    const token = authHeader && authHeader.split(' ')[1]; // Bearer TOKEN
+    console.log('Extracted token:', token ? token.substring(0, 20) + '...' : 'No token'); // Debug log
 
-    if (userResult.rows.length === 0) {
-      return res.status(401).json({ 
-        success: false, 
-        message: 'User not found' 
+    if (!token) {
+      return res.status(401).json({
+        success: false,
+        message: 'Access token required'
       });
     }
 
-    const user = userResult.rows[0];
+    // Verify token using simpleAuthService
+    const decoded = simpleAuthService.verifyToken(token);
+    console.log('Decoded token:', decoded); // Debug log
     
-    if (!user.is_active) {
-      return res.status(401).json({ 
-        success: false, 
-        message: 'User account is deactivated' 
+    if (!decoded) {
+      return res.status(401).json({
+        success: false,
+        message: 'Invalid or expired token',
+        code: 'TOKEN_EXPIRED'
       });
     }
 
-    // Add user info to request object
+    // Add user info to request
     req.user = {
-      id: user.id,
-      email: user.email,
-      role: user.role,
-      tenantId: user.tenant_id
+      id: decoded.id,
+      email: decoded.email,
+      role: decoded.role
     };
 
+    console.log('User authenticated:', req.user); // Debug log
     next();
   } catch (error) {
     console.error('Token verification error:', error);
-    return res.status(403).json({ 
-      success: false, 
-      message: 'Invalid or expired token' 
+    
+    if (error.name === 'TokenExpiredError') {
+      return res.status(401).json({
+        success: false,
+        message: 'Token expired',
+        code: 'TOKEN_EXPIRED'
+      });
+    }
+    
+    res.status(401).json({
+      success: false,
+      message: 'Invalid token'
     });
   }
 };
@@ -194,4 +194,4 @@ module.exports = {
   validateAdminPassword,
   isIPAllowed,
   isBusinessHours
-}; 
+};

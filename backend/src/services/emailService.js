@@ -208,9 +208,58 @@ const sendEmail = async (to, template, data) => {
 
 // Send verification email
 const sendVerificationEmail = async (userEmail, userName, verificationLink) => {
-  return await sendEmail(userEmail, 'verification', {
-    userName,
-    code: verificationLink
+  return await sendEmail(userEmail, 'custom', {
+    subject: 'Verify Your Email - EdTech Platform',
+    html: `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Verify Your Email</title>
+        <style>
+          body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+          .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+          .header { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 30px; text-align: center; border-radius: 10px 10px 0 0; }
+          .content { background: #f8f9fa; padding: 30px; border-radius: 0 0 10px 10px; }
+          .button { display: inline-block; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 12px 30px; text-decoration: none; border-radius: 8px; font-weight: bold; margin: 20px 0; }
+          .footer { text-align: center; margin-top: 30px; color: #666; font-size: 14px; }
+        </style>
+      </head>
+      <body>
+        <div class="container">
+          <div class="header">
+            <h1>EdTech Platform</h1>
+            <p>Verify your email address</p>
+          </div>
+          <div class="content">
+            <h2>Hello ${userName}!</h2>
+            <p>Thank you for signing up for EdTech Platform. Please click the button below to verify your email address:</p>
+            <div style="text-align: center;">
+              <a href="${verificationLink}" class="button">Verify Email Address</a>
+            </div>
+            <p>Or copy and paste this link into your browser:</p>
+            <p style="word-break: break-all; background: #e1e5e9; padding: 10px; border-radius: 5px;">${verificationLink}</p>
+            <p>This link will expire in 24 hours. If you didn't create an account, you can safely ignore this email.</p>
+          </div>
+          <div class="footer">
+            <p>© 2024 EdTech Platform. All rights reserved.</p>
+          </div>
+        </div>
+      </body>
+      </html>
+    `,
+    text: `
+      Hello ${userName}!
+      
+      Thank you for signing up for EdTech Platform. Please click the link below to verify your email address:
+      
+      ${verificationLink}
+      
+      This link will expire in 24 hours. If you didn't create an account, you can safely ignore this email.
+      
+      © 2024 EdTech Platform. All rights reserved.
+    `
   });
 };
 

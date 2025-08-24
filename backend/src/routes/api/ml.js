@@ -289,4 +289,14 @@ async function generateReportData(classId, dateRange, includeInsights, includePr
 async function generateReportFile(reportData, className, template) {
   // This would typically generate a CSV or PDF file
   // For now, we'll return a mock URL
-  const timestamp = new Date().toI 
+  const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+  const filename = `${className}_report_${timestamp}.csv`;
+  
+  return {
+    filename: filename,
+    url: `/reports/${filename}`,
+    size: '2.5KB'
+  };
+}
+
+module.exports = router; 

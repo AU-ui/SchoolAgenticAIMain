@@ -45,6 +45,78 @@ router.get('/children', authenticateToken, async (req, res) => {
   }
 });
 
+// GET /api/parents/:parentId/children - Get children for a specific parent (for frontend compatibility)
+router.get('/parents/:parentId/children', authenticateToken, async (req, res) => {
+  console.log('🔍 Route hit: /parents/:parentId/children');
+  console.log('Parent ID:', req.params.parentId);
+  console.log('Current user:', req.user);
+  
+  try {
+    const { parentId } = req.params;
+    const currentUserId = req.user.id;
+    const currentUserRole = req.user.role;
+
+    // Security check: Only allow access if:
+    // 1. User is requesting their own children (parentId matches their user_id)
+    // 2. User is admin/superadmin
+    if (parentId != currentUserId && !['admin', 'superadmin'].includes(currentUserRole)) {
+      console.log('❌ Access denied - parentId:', parentId, 'currentUserId:', currentUserId);
+      return res.status(403).json({
+        success: false,
+        message: 'Access denied'
+      });
+    }
+
+    console.log('✅ Access granted, fetching children...');
+
+    // Get the parent's internal ID from the parents table
+    const parentResult = await query('SELECT id FROM parents WHERE user_id = $1', [parentId]);
+    if (parentResult.rows.length === 0) {
+      console.log('❌ No parent record found for user_id:', parentId);
+      return res.json([]);
+    }
+    const parentInternalId = parentResult.rows[0].id;
+    console.log('✅ Parent internal ID:', parentInternalId);
+
+    // Get children with their details
+    const childrenResult = await query(`
+      SELECT
+        s.id,
+        u.first_name || ' ' || u.last_name AS name,
+        c.name AS grade,
+        sc.name AS schoolName,
+        t.domain AS schoolCode,
+        s.is_active AS status,
+        u.email AS studentEmail
+      FROM parent_students ps
+      JOIN students s ON ps.student_id = s.id
+      JOIN users u ON s.user_id = u.id
+      LEFT JOIN classes c ON s.class_id = c.id
+      LEFT JOIN schools sc ON s.school_id = sc.id
+      LEFT JOIN tenants t ON sc.tenant_id = t.id
+      WHERE ps.parent_id = $1 AND s.is_active = true
+      ORDER BY u.first_name, u.last_name
+    `, [parentInternalId]);
+
+    console.log('✅ Found children:', childrenResult.rows.length);
+
+    // Format the response
+    const children = childrenResult.rows.map(child => ({
+      ...child,
+      status: child.status ? 'Active' : 'Inactive'
+    }));
+
+    console.log('✅ Sending response with children:', children);
+    res.json(children);
+  } catch (err) {
+    console.error('❌ Error fetching children:', err);
+    res.status(500).json({ 
+      success: false,
+      message: 'Server error' 
+    });
+  }
+});
+
 // GET /api/parent/dashboard
 router.get('/dashboard', authenticateToken, requireRole(['parent']), async (req, res) => {
   try {

@@ -19,6 +19,14 @@ const teacherRoutes = require('./routes/api/teacher');
 const parentRoutes = require('./routes/api/parent');
 const studentRoutes = require('./routes/api/student');
 const administratorRoutes = require('./routes/api/administrator');
+const mlRoutes = require('./routes/api/ml');
+const studentSyllabusRoutes = require('./routes/api/student_syllabus');
+const teacherSyllabusRoutes = require('./routes/api/teacher_syllabus');
+const teacherQuestionPapersRoutes = require('./routes/api/teacher_question_papers');
+const teacherReportsRoutes = require('./routes/api/teacher_reports');
+const aiRoutes = require('./routes/api/ai');
+const dashboardRoutes = require('./routes/api/dashboard');
+const attendanceRoutes = require('./routes/api/attendance');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -59,24 +67,36 @@ app.use(cors({
   credentials: true
 }));
 
-// Enhanced Rate limiting
+// Enhanced Rate limiting - FIXED: Added proper IP handling
 const limiter = rateLimit({
   windowMs: parseInt(process.env.RATE_LIMIT_WINDOW_MS) || 15 * 60 * 1000, // 15 minutes
   max: parseInt(process.env.RATE_LIMIT_MAX_REQUESTS) || 100, // limit each IP to 100 requests per windowMs
   message: {
     success: false,
     message: 'Too many requests from this IP, please try again later.'
+  },
+  standardHeaders: true,
+  legacyHeaders: false,
+  // Fix for X-Forwarded-For header issue
+  keyGenerator: (req) => {
+    return req.ip || req.connection.remoteAddress || 'unknown';
   }
 });
 app.use('/api/', limiter);
 
-// Specific rate limits for sensitive endpoints
+// Specific rate limits for sensitive endpoints - FIXED: Added proper IP handling
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
   max: 5, // 5 attempts per window
   message: {
     success: false,
     message: 'Too many authentication attempts. Please try again later.'
+  },
+  standardHeaders: true,
+  legacyHeaders: false,
+  // Fix for X-Forwarded-For header issue
+  keyGenerator: (req) => {
+    return req.ip || req.connection.remoteAddress || 'unknown';
   }
 });
 
@@ -119,8 +139,17 @@ app.use('/api/users', userRoutes);
 app.use('/api/superadmin', superadminRoutes);
 app.use('/api/teacher', teacherRoutes);
 app.use('/api/parent', parentRoutes);
+app.use('/api/parents', parentRoutes);
 app.use('/api/student', studentRoutes);
 app.use('/api/administrator', administratorRoutes);
+app.use('/api/ml', mlRoutes);
+app.use('/api/student/syllabus', studentSyllabusRoutes);
+app.use('/api/teacher/syllabus', teacherSyllabusRoutes);
+app.use('/api/teacher/question-papers', teacherQuestionPapersRoutes);
+app.use('/api/teacher/reports', teacherReportsRoutes);
+app.use('/api/attendance', attendanceRoutes);
+app.use('/api/ai', aiRoutes);
+app.use('/api/dashboard', dashboardRoutes);
 
 // 404 handler
 app.use('*', (req, res) => {

@@ -215,6 +215,115 @@ router.get('/schedule', authenticateToken, requireRole(['student']), async (req,
   }
 });
 
+// GET /api/students/:studentId/attendance - Get student attendance (with parent access control)
+router.get('/:studentId/attendance', authenticateToken, async (req, res) => {
+  try {
+    const { studentId } = req.params;
+    const { month, year } = req.query;
+    const currentUserId = req.user.id;
+    const currentUserRole = req.user.role;
+
+    // Check if user has permission to view this student's attendance
+    let hasPermission = false;
+
+    if (currentUserRole === 'parent') {
+      // Check if this student belongs to the parent
+      const parentCheck = await query(`
+        SELECT ps.student_id 
+        FROM parent_students ps
+        JOIN parents p ON ps.parent_id = p.id
+        WHERE p.user_id = $1 AND ps.student_id = $2
+      `, [currentUserId, studentId]);
+      hasPermission = parentCheck.rows.length > 0;
+    } else if (currentUserRole === 'student') {
+      // Check if this is the student's own attendance
+      const studentCheck = await query(`
+        SELECT id FROM students WHERE user_id = $1 AND id = $2
+      `, [currentUserId, studentId]);
+      hasPermission = studentCheck.rows.length > 0;
+    } else if (['teacher', 'admin', 'superadmin'].includes(currentUserRole)) {
+      // Teachers and admins can view any student's attendance
+      hasPermission = true;
+    }
+
+    if (!hasPermission) {
+      return res.status(403).json({
+        success: false,
+        message: 'Access denied'
+      });
+    }
+
+    // Query real attendance data from the database with PostgreSQL syntax
+    const attendanceQuery = `
+      SELECT 
+        ar.id,
+        ar.student_id,
+        ar.session_id,
+        ar.status,
+        asess.session_date,
+        asess.start_time,
+        asess.end_time
+      FROM attendance_records ar
+      JOIN attendance_sessions asess ON ar.session_id = asess.id
+      WHERE ar.student_id = $1 
+        AND EXTRACT(MONTH FROM asess.session_date) = $2 
+        AND EXTRACT(YEAR FROM asess.session_date) = $3
+      ORDER BY asess.session_date
+    `;
+    
+    const attendanceResult = await query(attendanceQuery, [studentId, month, year]);
+    
+    console.log('Attendance query result:', attendanceResult.rows);
+    console.log('Query parameters:', { studentId, month, year });
+    
+    // Calculate summary statistics
+    const totalDays = attendanceResult.rows.length;
+    const presentDays = attendanceResult.rows.filter(row => row.status === 'present').length;
+    const absentDays = attendanceResult.rows.filter(row => row.status === 'absent').length;
+    const lateDays = attendanceResult.rows.filter(row => row.status === 'late').length;
+    const attendancePercentage = totalDays > 0 ? Math.round((presentDays / totalDays) * 100) : 0;
+
+    console.log('Calculated stats:', { totalDays, presentDays, absentDays, lateDays, attendancePercentage });
+
+    // Create calendar data
+    const calendar = [];
+    if (month && year) {
+      const daysInMonth = new Date(year, month, 0).getDate();
+      for (let day = 1; day <= daysInMonth; day++) {
+        const dateStr = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+        const attendanceRecord = attendanceResult.rows.find(row => 
+          row.session_date.toISOString().split('T')[0] === dateStr
+        );
+        
+        calendar.push({
+          date: day,
+          attendance: attendanceRecord ? attendanceRecord.status : null
+        });
+      }
+    }
+
+    res.json({
+      success: true,
+      attendance: attendanceResult.rows,
+      summary: {
+        total_days: totalDays,
+        present_days: presentDays,
+        absent_days: absentDays,
+        late_days: lateDays,
+        attendance_percentage: attendancePercentage
+      },
+      calendar: calendar
+    });
+
+  } catch (error) {
+    console.error('Error fetching student attendance:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch attendance data'
+    });
+  }
+});
+
 // GET /api/student/attendance - Get student's attendance
 router.get('/attendance', authenticateToken, requireRole(['student']), async (req, res) => {
   try {
@@ -364,5 +473,33 @@ router.post('/assignments/:assignmentId/submit', authenticateToken, requireRole(
     });
   }
 });
+
+// Helper function to generate calendar data
+function generateCalendarData(month, year, attendanceRecords) {
+  const firstDay = new Date(year, month, 1);
+  const lastDay = new Date(year, month + 1, 0);
+  const startDate = new Date(firstDay);
+  startDate.setDate(startDate.getDate() - firstDay.getDay()); // Start from Sunday
+
+  const calendar = [];
+  const currentDate = new Date(startDate);
+
+  while (currentDate <= lastDay || currentDate.getDay() !== 0) {
+    const dateStr = currentDate.toISOString().split('T')[0];
+    const attendanceRecord = attendanceRecords.find(record => 
+      record.date === dateStr
+    );
+
+    calendar.push({
+      date: currentDate.getMonth() === month ? currentDate.getDate() : null,
+      attendance: attendanceRecord ? attendanceRecord.status : null,
+      notes: attendanceRecord ? attendanceRecord.notes : null
+    });
+
+    currentDate.setDate(currentDate.getDate() + 1);
+  }
+
+  return calendar;
+}
 
 module.exports = router; 

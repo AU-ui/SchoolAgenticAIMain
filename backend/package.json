@@ -24,7 +24,9 @@
     "jsonwebtoken": "^9.0.0",
     "multer": "^2.0.2",
     "nodemailer": "^6.9.1",
+    "pdfkit": "^0.17.1",
     "pg": "^8.10.0",
+    "uuid": "^11.1.0",
     "xss-clean": "^0.1.4"
   },
   "devDependencies": {
