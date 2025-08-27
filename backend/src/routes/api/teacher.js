@@ -143,7 +143,7 @@ router.get('/classes/:classId/students', authenticateToken, requireRole(['teache
     // Get students with their attendance status for the date
     const studentsQuery = `
       SELECT 
-        s.id,
+        u.id,
         s.student_id as student_code,
         CONCAT(u.first_name, ' ', u.last_name) as name,
         u.email,
@@ -151,12 +151,13 @@ router.get('/classes/:classId/students', authenticateToken, requireRole(['teache
         COALESCE(ar.status, 'not_marked') as attendance_status,
         ar.notes,
         ar.created_at as marked_at
-      FROM students s
-      JOIN users u ON s.user_id = u.id
-      LEFT JOIN attendance_records ar ON s.id = ar.student_id 
+      FROM users u
+      JOIN students s ON u.id = s.user_id
+      JOIN class_students cs ON u.id = cs.student_id
+      LEFT JOIN attendance_records ar ON u.id = ar.student_id 
         AND ar.class_id = $1 
         AND ar.date = $2
-      WHERE s.class_id = $1 AND s.is_active = true
+      WHERE cs.class_id = $1 AND cs.is_active = true AND u.role = 'student'
       ORDER BY u.first_name, u.last_name
     `;
     
